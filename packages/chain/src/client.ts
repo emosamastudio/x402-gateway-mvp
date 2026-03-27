@@ -18,6 +18,7 @@ export function getPublicClient(network: Network) {
 export function getWalletClient(network: Network) {
   const privateKey = process.env.FACILITATOR_PRIVATE_KEY;
   if (!privateKey) throw new Error("FACILITATOR_PRIVATE_KEY not set");
+  if (!privateKey.startsWith("0x")) throw new Error("FACILITATOR_PRIVATE_KEY must start with 0x");
   const account = privateKeyToAccount(privateKey as `0x${string}`);
   return createWalletClient({
     account,
