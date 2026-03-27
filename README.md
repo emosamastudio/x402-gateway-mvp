@@ -37,9 +37,9 @@ cp .env.example .env
 
 ```env
 FACILITATOR_PRIVATE_KEY=0x你的私钥    # 负责广播结算交易的钱包
+OPTIMISM_SEPOLIA_RPC=https://opt-sepolia.g.alchemy.com/v2/<你的key>
+SEPOLIA_RPC=https://eth-sepolia.nodereal.io/v1/<你的key>
 ```
-
-其余默认值已填好（RPC 端点、合约地址、Domain 参数）。
 
 ### 2. 安装依赖 & 构建
 
@@ -137,60 +137,50 @@ curl http://localhost:8402/api/weather
 
 ### 第二步：构造 EIP-712 签名
 
-用你的以太坊钱包对 `TransferWithAuthorization` 结构签名：
+网关的 402 响应中包含 `domainSeparator` 字段（直接从合约 `DOMAIN_SEPARATOR()` 读取的实际值），**必须使用该值**手动计算 digest，而非通过 domain fields 推导——因为 DMHKD 代理合约的 `_DOMAIN_SEPARATOR_SLOT` 初始化状态可能与标准 EIP-712 计算结果不同。
 
 ```typescript
-import { createWalletClient, http, parseUnits } from "viem";
-import { optimismSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { keccak256, encodeAbiParameters, parseAbiParameters, concat } from "viem";
 
 const account = privateKeyToAccount("0x你的私钥");
-const client = createWalletClient({
-  account,
-  chain: optimismSepolia,
-  transport: http("https://opt-sepolia.g.alchemy.com/v2/..."),
-});
+
+// 从 402 响应中取出支付要求
+const { requirement } = await fetch("http://localhost:8402/api/weather").then(r => r.json());
+const domainSeparator = requirement.domainSeparator as `0x${string}`;
 
 const now = Math.floor(Date.now() / 1000);
-const nonce = `0x${crypto.getRandomValues(new Uint8Array(32)).reduce(
-  (hex, b) => hex + b.toString(16).padStart(2, "0"), ""
-)}`;
+const nonce = `0x${Array.from(crypto.getRandomValues(new Uint8Array(32)))
+  .map(b => b.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+const value = BigInt(requirement.maxAmountRequired);
+const validBefore = BigInt(now + requirement.maxTimeoutSeconds);
 
-const signature = await client.signTypedData({
-  domain: {
-    name: "DMHKD",               // DMHKD 合约的 EIP-712 domain name
-    version: "2",
-    chainId: 11155420,           // Optimism Sepolia
-    verifyingContract: "0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6",
-  },
-  types: {
-    TransferWithAuthorization: [
-      { name: "from",        type: "address" },
-      { name: "to",          type: "address" },
-      { name: "value",       type: "uint256" },
-      { name: "validAfter",  type: "uint256" },
-      { name: "validBefore", type: "uint256" },
-      { name: "nonce",       type: "bytes32" },
-    ],
-  },
-  primaryType: "TransferWithAuthorization",
-  message: {
-    from: account.address,
-    to: "0x收款方地址",          // requirement.payTo
-    value: parseUnits("0.001", 6), // = 1000n（最小单位）
-    validAfter: 0n,
-    validBefore: BigInt(now + 300),
-    nonce: nonce as `0x${string}`,
-  },
-});
+// TransferWithAuthorization typehash
+const TYPEHASH = keccak256(
+  new TextEncoder().encode(
+    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+  )
+);
+
+// 手动计算 EIP-712 digest，使用合约实际 domainSeparator
+const structHash = keccak256(encodeAbiParameters(
+  parseAbiParameters("bytes32, address, address, uint256, uint256, uint256, bytes32"),
+  [TYPEHASH, account.address, requirement.payTo as `0x${string}`, value, 0n, validBefore, nonce]
+));
+const digest = keccak256(concat(["0x1901", domainSeparator, structHash]));
+
+// 对原始 digest 签名（不用 signTypedData，避免重复计算 DS）
+const signature = await account.sign({ hash: digest });
 ```
 
-**网络参数速查：**
+**合约地址速查：**
 
-| 字段 | Optimism Sepolia | Ethereum Sepolia |
-|------|---------|-----------|-------------|
-| Optimism Sepolia | 11155420 | `0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6` | `"DMHKD"` | `"2"` |
-| Ethereum Sepolia | 11155111 | `0x1aA90392c804343C7854DD700f50a48961B71c53` | `"DMHKD coin"` | `"2"` |
+| 网络 | Chain ID | DMHKD 合约地址 |
+|------|----------|----------------|
+| Optimism Sepolia | 11155420 | `0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6` |
+| Ethereum Sepolia | 11155111 | `0x1aA90392c804343C7854DD700f50a48961B71c53` |
+
+> `domainSeparator` 由网关在 402 响应中提供，无需手动指定。
 
 ---
 
@@ -255,7 +245,7 @@ const data = await response.json();
 | `402` + `"Payment amount too low"` | 金额不足 | 提高 `value` |
 | `402` + `"Invalid payment signature"` | 签名错误 | 检查 domain 参数和私钥 |
 | `402` + `"Payment recipient mismatch"` | `to` 地址不对 | 使用 `requirement.payTo` |
-| `402` + `"Payment nonce already used"` | nonce 重放 | 生成新 nonce |
+| `402` + `"Payment nonce already used (replay attack)"` | nonce 重放 | 生成新 nonce |
 | `404` | 路径未注册 | 确认服务已注册 |
 
 ---
