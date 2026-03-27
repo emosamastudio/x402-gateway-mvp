@@ -58,7 +58,11 @@ export async function settlePayment(
       ],
     });
 
-    await publicClient.waitForTransactionReceipt({ hash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status === "reverted") {
+      throw new Error(`Transaction reverted on-chain`);
+    }
 
     // Mark nonce as used only after confirmed on-chain
     globalNonceStore.markUsed(authorization.nonce);

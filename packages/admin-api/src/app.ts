@@ -14,7 +14,9 @@ export function createAdminApp() {
 
   // Require API key for all non-health routes
   const adminApiKey = process.env.ADMIN_API_KEY;
-  if (adminApiKey) {
+  if (!adminApiKey) {
+    console.warn("⚠️  ADMIN_API_KEY not set — admin API is unauthenticated. Set ADMIN_API_KEY in production.");
+  } else {
     app.use("*", async (c, next) => {
       const key = c.req.header("Authorization")?.replace("Bearer ", "");
       if (key !== adminApiKey) return c.json({ error: "Unauthorized" }, 401);

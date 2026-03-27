@@ -21,6 +21,11 @@ export async function verifyPayment(
   const { authorization, signature } = payload.payload;
   const now = Math.floor(Date.now() / 1000);
 
+  // Check network matches
+  if (payload.network !== requirement.network) {
+    return { isValid: false, error: "Payment network does not match service network" };
+  }
+
   // Check expiry
   if (Number(authorization.validBefore) < now) {
     return { isValid: false, error: "Payment expired" };

@@ -97,4 +97,14 @@ describe("verifyPayment", () => {
     expect(result.isValid).toBe(false);
     expect(result.error).toMatch(/not yet valid/i);
   });
+
+  it("returns valid=false when payment network does not match requirement network", async () => {
+    const wrongNetworkPayload: PaymentPayload = {
+      ...mockPayload,
+      network: "polygon-amoy",
+    };
+    const result = await verifyPayment(wrongNetworkPayload, mockRequirement);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toMatch(/network/i);
+  });
 });
