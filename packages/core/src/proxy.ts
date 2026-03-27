@@ -5,9 +5,9 @@ export async function proxyToBackend(c: Context, backendUrl: string): Promise<Re
   const targetUrl = backendUrl.replace(/\/$/, "") + url.pathname + url.search;
 
   const headers = new Headers(c.req.raw.headers);
-  // Remove x402-specific headers before forwarding
-  headers.delete("PAYMENT-SIGNATURE");
-  headers.delete("X-Agent-Address");
+  // Remove x402-specific headers before forwarding (WHATWG Headers lowercases names)
+  headers.delete("payment-signature");
+  headers.delete("x-agent-address");
 
   const response = await fetch(targetUrl, {
     method: c.req.method,

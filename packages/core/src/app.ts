@@ -46,23 +46,39 @@ export function createCoreApp() {
 
     // Backend succeeded — settle on-chain
     if (backendResponse.ok) {
-      const txHash = await settleAfterSuccess(c).catch(() => null);
+      const db = getDb();
+      const paymentPayload = (c as any).get("paymentPayload") as import("@x402-gateway/shared").PaymentPayload | undefined;
 
-      if (txHash) {
-        const db = getDb();
-        const paymentPayload = (c as any).get("paymentPayload") as import("@x402-gateway/shared").PaymentPayload | undefined;
+      let txHash: string | null = null;
+      try {
+        txHash = await settleAfterSuccess(c);
+      } catch (err) {
+        console.error("Settlement failed:", err);
         if (paymentPayload && service) {
           db.insertPayment({
             id: randomUUID(),
             serviceId: service.id,
             agentAddress: paymentPayload.payload.authorization.from,
-            txHash,
+            txHash: "pending",
             network: service.network,
             amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
-            status: "settled",
+            status: "failed",
             createdAt: Date.now(),
           });
         }
+      }
+
+      if (txHash && paymentPayload && service) {
+        db.insertPayment({
+          id: randomUUID(),
+          serviceId: service.id,
+          agentAddress: paymentPayload.payload.authorization.from,
+          txHash,
+          network: service.network,
+          amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
+          status: "settled",
+          createdAt: Date.now(),
+        });
 
         const response = new Response(backendResponse.body, backendResponse);
         response.headers.set("PAYMENT-RESPONSE", Buffer.from(JSON.stringify({ txHash })).toString("base64"));

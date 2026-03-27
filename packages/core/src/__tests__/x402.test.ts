@@ -30,17 +30,32 @@ describe("x402Middleware", () => {
     expect(body.requirement.maxAmountRequired).toBe("1000"); // 0.001 USDC = 1000 units
   });
 
-  it("calls next when PAYMENT-SIGNATURE header is present (verify is mocked)", async () => {
-    vi.mock("../../../facilitator/src/verify.js", () => ({
-      verifyPayment: vi.fn().mockResolvedValue({ isValid: true }),
-    }));
+  it("calls next when valid PAYMENT-SIGNATURE header is present", async () => {
+    const validPayload = {
+      x402Version: 1,
+      scheme: "exact",
+      network: "base-sepolia",
+      payload: {
+        signature: "0x" + "a".repeat(130),
+        authorization: {
+          from: "0x2222222222222222222222222222222222222222",
+          to: "0x1111111111111111111111111111111111111111",
+          value: "1000",
+          validAfter: "0",
+          validBefore: String(Math.floor(Date.now() / 1000) + 300),
+          nonce: "0x" + "b".repeat(64),
+        },
+      },
+    };
+    const header = Buffer.from(JSON.stringify(validPayload)).toString("base64");
 
-    // Will be tested in integration — unit test just checks 402 branch
     const app = new Hono();
     app.use("*", x402Middleware(() => mockService));
     app.get("/api/test", (c) => c.text("ok"));
 
-    const res = await app.request("/api/test");
-    expect(res.status).toBe(402); // still 402 since we're not providing the header here
+    const res = await app.request("/api/test", {
+      headers: { "PAYMENT-SIGNATURE": header },
+    });
+    expect(res.status).toBe(200); // verifyPayment is mocked to return isValid: true
   });
 });
