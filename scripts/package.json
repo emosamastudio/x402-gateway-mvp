@@ -1,0 +1,16 @@
+{
+  "name": "x402-gateway-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "npx tsx demo.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@x402-gateway/shared": "workspace:*",
+    "viem": "^2.17.0"
+  }
+}
