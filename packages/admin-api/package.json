@@ -1,17 +1,7 @@
 {
-  "name": "@x402-gateway/core",
+  "name": "@x402-gateway/admin-api",
   "version": "0.1.0",
   "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./src/db.js": {
-      "import": "./dist/db.js",
-      "types": "./dist/db.d.ts"
-    }
-  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -20,15 +10,12 @@
   },
   "dependencies": {
     "@x402-gateway/chain": "workspace:*",
-    "@x402-gateway/facilitator": "workspace:*",
+    "@x402-gateway/core": "workspace:*",
     "@x402-gateway/shared": "workspace:*",
     "@hono/node-server": "^1.12.0",
-    "better-sqlite3": "^12.8.0",
     "hono": "^4.4.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "@types/node": "^20.0.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }
