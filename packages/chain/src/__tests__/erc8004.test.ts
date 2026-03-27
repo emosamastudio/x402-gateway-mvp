@@ -9,10 +9,14 @@ vi.mock("../client.js", () => ({
 }));
 
 // Provide a non-null contract address so tests reach the client calls
+const mockAddresses: Record<string, string | null> = {
+  "base-sepolia": "0xdeadbeef",
+  "polygon-amoy": "0xdeadbeef",
+};
+
 vi.mock("../networks.js", () => ({
-  ERC8004_IDENTITY_ADDRESSES: {
-    "base-sepolia": "0xdeadbeef",
-    "polygon-amoy": "0xdeadbeef",
+  get ERC8004_IDENTITY_ADDRESSES() {
+    return mockAddresses;
   },
   USDC_ADDRESSES: {
     "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
@@ -40,7 +44,7 @@ describe("checkAgentIdentity", () => {
     expect(result.reputation).toBe(75);
   });
 
-  it("returns registered=false when ERC8004_MOCK=true", async () => {
+  it("returns registered=true when ERC8004_MOCK=true", async () => {
     process.env.ERC8004_MOCK = "true";
     const result = await checkAgentIdentity("0xabc", "base-sepolia");
     expect(result.isRegistered).toBe(true); // mock always passes
@@ -49,10 +53,11 @@ describe("checkAgentIdentity", () => {
   });
 
   it("returns registered=false when no contract address configured", async () => {
-    const mockClient = { readContract: vi.fn().mockResolvedValueOnce(false) };
-    vi.mocked(getPublicClient).mockReturnValue(mockClient as any);
+    mockAddresses["base-sepolia"] = null;
 
     const result = await checkAgentIdentity("0xabc", "base-sepolia");
     expect(result.isRegistered).toBe(false);
+
+    mockAddresses["base-sepolia"] = "0xdeadbeef"; // restore
   });
 });
