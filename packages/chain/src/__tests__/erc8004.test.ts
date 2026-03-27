@@ -10,20 +10,20 @@ vi.mock("../client.js", () => ({
 
 // Provide a non-null contract address so tests reach the client calls
 const mockAddresses: Record<string, string | null> = {
-  "base-sepolia": "0xdeadbeef",
-  "polygon-amoy": "0xdeadbeef",
+  "optimism-sepolia": "0xdeadbeef",
+  "sepolia": "0xdeadbeef",
 };
 
 vi.mock("../networks.js", () => ({
   get ERC8004_IDENTITY_ADDRESSES() {
     return mockAddresses;
   },
-  USDC_ADDRESSES: {
-    "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    "polygon-amoy": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+  DMHKD_ADDRESSES: {
+    "optimism-sepolia": "0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6",
+    "sepolia": "0x1aA90392c804343C7854DD700f50a48961B71c53",
   },
   CHAINS: {},
-  CHAIN_IDS: { "base-sepolia": 84532, "polygon-amoy": 80002 },
+  CHAIN_IDS: { "optimism-sepolia": 11155420, "sepolia": 11155111 },
 }));
 
 import { getPublicClient } from "../client.js";
@@ -39,25 +39,25 @@ describe("checkAgentIdentity", () => {
     };
     vi.mocked(getPublicClient).mockReturnValue(mockClient as any);
 
-    const result = await checkAgentIdentity("0xabc", "base-sepolia");
+    const result = await checkAgentIdentity("0xabc", "optimism-sepolia");
     expect(result.isRegistered).toBe(true);
     expect(result.reputation).toBe(75);
   });
 
   it("returns registered=true when ERC8004_MOCK=true", async () => {
     process.env.ERC8004_MOCK = "true";
-    const result = await checkAgentIdentity("0xabc", "base-sepolia");
+    const result = await checkAgentIdentity("0xabc", "optimism-sepolia");
     expect(result.isRegistered).toBe(true); // mock always passes
     expect(result.reputation).toBe(100);
     delete process.env.ERC8004_MOCK;
   });
 
   it("returns registered=false when no contract address configured", async () => {
-    mockAddresses["base-sepolia"] = null;
+    mockAddresses["optimism-sepolia"] = null;
 
-    const result = await checkAgentIdentity("0xabc", "base-sepolia");
+    const result = await checkAgentIdentity("0xabc", "optimism-sepolia");
     expect(result.isRegistered).toBe(false);
 
-    mockAddresses["base-sepolia"] = "0xdeadbeef"; // restore
+    mockAddresses["optimism-sepolia"] = "0xdeadbeef"; // restore
   });
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const NetworkSchema = z.enum(["base-sepolia", "polygon-amoy"]);
+export const NetworkSchema = z.enum(["optimism-sepolia", "sepolia"]);
 
 export const CreateServiceSchema = z.object({
   name: z.string().min(1).max(100),

@@ -1,10 +1,11 @@
 import type { Context, Next } from "hono";
 import type { Service, PaymentPayload, PaymentRequirement } from "@x402-gateway/shared";
 import { toUsdcUnits } from "@x402-gateway/shared";
-import { USDC_ADDRESSES } from "@x402-gateway/chain";
+import { DMHKD_ADDRESSES, getDomainSeparator } from "@x402-gateway/chain";
 import { verifyPayment, settlePayment } from "@x402-gateway/facilitator";
 
-export function buildPaymentRequirement(service: Service, requestUrl: string): PaymentRequirement {
+async function buildPaymentRequirement(service: Service, requestUrl: string): Promise<PaymentRequirement> {
+  const domainSeparator = await getDomainSeparator(service.network);
   return {
     network: service.network,
     maxAmountRequired: toUsdcUnits(service.priceAmount).toString(),
@@ -12,7 +13,8 @@ export function buildPaymentRequirement(service: Service, requestUrl: string): P
     description: `Access to ${service.name}`,
     payTo: service.recipient,
     maxTimeoutSeconds: 300,
-    asset: USDC_ADDRESSES[service.network],
+    asset: DMHKD_ADDRESSES[service.network],
+    domainSeparator,
   };
 }
 
@@ -24,7 +26,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
     if (!service) return next(); // Not a protected route — pass through
 
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
-    const requirement = buildPaymentRequirement(service, c.req.url);
+    const requirement = await buildPaymentRequirement(service, c.req.url);
 
     // No payment — return 402
     if (!paymentHeader) {

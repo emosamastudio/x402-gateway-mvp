@@ -3,7 +3,7 @@ import { Hono } from "hono";
 
 vi.mock("@x402-gateway/facilitator", () => ({
   verifyPayment: vi.fn().mockResolvedValue({ isValid: true }),
-  settlePayment: vi.fn().mockResolvedValue({ txHash: "0xtx1", network: "base-sepolia" }),
+  settlePayment: vi.fn().mockResolvedValue({ txHash: "0xtx1", network: "optimism-sepolia" }),
 }));
 
 import { x402Middleware } from "../middleware/x402.js";
@@ -11,7 +11,7 @@ import type { Service } from "@x402-gateway/shared";
 
 const mockService: Service = {
   id: "svc_1", name: "Test API", backendUrl: "http://backend:3001",
-  priceAmount: "0.001", priceCurrency: "USDC", network: "base-sepolia",
+  priceAmount: "0.001", priceCurrency: "DMHKD", network: "optimism-sepolia",
   recipient: "0x1111111111111111111111111111111111111111", minReputation: 0, createdAt: 1,
 };
 
@@ -26,7 +26,7 @@ describe("x402Middleware", () => {
 
     const body = await res.json();
     expect(body.error).toBe("Payment Required");
-    expect(body.requirement.network).toBe("base-sepolia");
+    expect(body.requirement.network).toBe("optimism-sepolia");
     expect(body.requirement.maxAmountRequired).toBe("1000"); // 0.001 USDC = 1000 units
   });
 
@@ -34,7 +34,7 @@ describe("x402Middleware", () => {
     const validPayload = {
       x402Version: 1,
       scheme: "exact",
-      network: "base-sepolia",
+      network: "optimism-sepolia",
       payload: {
         signature: "0x" + "a".repeat(130),
         authorization: {

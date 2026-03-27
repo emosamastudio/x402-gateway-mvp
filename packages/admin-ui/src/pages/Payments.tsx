@@ -23,7 +23,7 @@ export function Payments() {
             <tr key={p.id}>
               <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #111827" }}>{p.agentAddress.slice(0, 10)}…</td>
               <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #111827" }}>{p.serviceId.slice(0, 10)}…</td>
-              <td style={{ padding: "10px 12px", color: "#e2e8f0", borderBottom: "1px solid #111827" }}>{p.amount} USDC</td>
+              <td style={{ padding: "10px 12px", color: "#e2e8f0", borderBottom: "1px solid #111827" }}>{p.amount} DMHKD</td>
               <td style={{ padding: "10px 12px", color: "#94a3b8", borderBottom: "1px solid #111827" }}>{p.network}</td>
               <td style={{ padding: "10px 12px", color: "#22d3ee", borderBottom: "1px solid #111827" }}>{p.txHash.slice(0, 14)}…</td>
               <td style={{ padding: "10px 12px", borderBottom: "1px solid #111827" }}>

@@ -1,8 +1,8 @@
 import type { Network, SettleResult, TransferAuthorization } from "@x402-gateway/shared";
-import { getWalletClient, getPublicClient, USDC_ADDRESSES } from "@x402-gateway/chain";
+import { getWalletClient, DMHKD_ADDRESSES } from "@x402-gateway/chain";
 import { globalNonceStore } from "./nonce.js";
 
-const USDC_TRANSFER_ABI = [
+const DMHKD_TRANSFER_ABI = [
   {
     name: "transferWithAuthorization",
     type: "function",
@@ -36,14 +36,26 @@ export async function settlePayment(
   network: Network
 ): Promise<SettleResult> {
   const walletClient = getWalletClient(network);
-  const publicClient = getPublicClient(network);
-  const usdcAddress = USDC_ADDRESSES[network];
+  const dmhkdAddress = DMHKD_ADDRESSES[network];
   const { v, r, s } = splitSignature(signature);
+
+  // Extract a concise revert reason from viem errors
+  function toCleanError(err: unknown): string {
+    if (err instanceof Error) {
+      // viem BaseError exposes shortMessage (e.g. "FiatTokenV2: invalid signature")
+      const short = (err as any).shortMessage as string | undefined;
+      if (short) return short;
+      // Fallback: first non-empty line of the message
+      const firstLine = err.message.split("\n").find(l => l.trim());
+      return firstLine?.trim() ?? err.message;
+    }
+    return String(err);
+  }
 
   try {
     const hash = await walletClient.writeContract({
-      address: usdcAddress,
-      abi: USDC_TRANSFER_ABI,
+      address: dmhkdAddress,
+      abi: DMHKD_TRANSFER_ABI,
       functionName: "transferWithAuthorization",
       args: [
         authorization.from as `0x${string}`,
@@ -58,17 +70,14 @@ export async function settlePayment(
       ],
     });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-    if (receipt.status === "reverted") {
-      throw new Error(`Transaction reverted on-chain`);
-    }
-
-    // Mark nonce as used only after confirmed on-chain
+    // Mark nonce as used immediately after broadcast to prevent replay attacks.
+    // We don't wait for receipt — simulation inside writeContract already ensures
+    // the tx won't revert, and waiting for a block (~12s on Sepolia) would block
+    // the HTTP response for too long.
     globalNonceStore.markUsed(authorization.nonce);
 
     return { txHash: hash, network };
   } catch (err) {
-    throw new Error(`Settlement failed for nonce ${authorization.nonce}: ${String(err)}`);
+    throw new Error(`Settlement failed: ${toCleanError(err)}`);
   }
 }

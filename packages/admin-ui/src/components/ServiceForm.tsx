@@ -10,7 +10,7 @@ const INPUT_STYLE = {
 export function ServiceForm({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({
     name: "", backendUrl: "", priceAmount: "0.001",
-    network: "base-sepolia", recipient: "", minReputation: 0,
+    network: "optimism-sepolia", recipient: "", minReputation: 0,
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function ServiceForm({ onCreated }: { onCreated: () => void }) {
     try {
       await createService(form);
       onCreated();
-      setForm({ name: "", backendUrl: "", priceAmount: "0.001", network: "base-sepolia", recipient: "", minReputation: 0 });
+      setForm({ name: "", backendUrl: "", priceAmount: "0.001", network: "optimism-sepolia", recipient: "", minReputation: 0 });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -36,10 +36,10 @@ export function ServiceForm({ onCreated }: { onCreated: () => void }) {
       {error && <div style={{ color: "#f87171", marginBottom: 12, fontSize: 13 }}>{error}</div>}
       <input style={INPUT_STYLE} placeholder="Service name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
       <input style={INPUT_STYLE} placeholder="Backend URL (e.g. http://localhost:3001)" value={form.backendUrl} onChange={(e) => setForm({ ...form, backendUrl: e.target.value })} required />
-      <input style={INPUT_STYLE} placeholder="Price in USDC (e.g. 0.001)" value={form.priceAmount} onChange={(e) => setForm({ ...form, priceAmount: e.target.value })} required />
+      <input style={INPUT_STYLE} placeholder="Price in DMHKD (e.g. 0.001)" value={form.priceAmount} onChange={(e) => setForm({ ...form, priceAmount: e.target.value })} required />
       <select style={INPUT_STYLE} value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })}>
-        <option value="base-sepolia">Base Sepolia</option>
-        <option value="polygon-amoy">Polygon Amoy</option>
+        <option value="optimism-sepolia">Optimism Sepolia</option>
+        <option value="sepolia">Ethereum Sepolia</option>
       </select>
       <input style={INPUT_STYLE} placeholder="Recipient wallet (0x...)" value={form.recipient} onChange={(e) => setForm({ ...form, recipient: e.target.value })} required />
       <input style={INPUT_STYLE} type="number" placeholder="Min reputation (0 = no limit)" value={form.minReputation} onChange={(e) => setForm({ ...form, minReputation: Number(e.target.value) })} />

@@ -44,49 +44,66 @@ export function createCoreApp() {
       return c.json({ error: "Backend unreachable" }, 502);
     }
 
+    // Buffer body into memory immediately so the proxy's AbortSignal (10s timeout)
+    // cannot abort the stream during the settlement phase.
+    const bodyBuffer = await backendResponse.arrayBuffer();
+    const responseHeaders = new Headers(backendResponse.headers);
+
     // Backend succeeded — settle on-chain
     if (backendResponse.ok) {
       const db = getDb();
       const paymentPayload = (c as any).get("paymentPayload") as import("@x402-gateway/shared").PaymentPayload | undefined;
 
+      if (!paymentPayload) {
+        return new Response(bodyBuffer, {
+          status: backendResponse.status,
+          statusText: backendResponse.statusText,
+          headers: responseHeaders,
+        });
+      }
+
       let txHash: string | null = null;
+      let settlementError: string | null = null;
+
       try {
         txHash = await settleAfterSuccess(c);
       } catch (err) {
-        console.error("Settlement failed:", err);
-        if (paymentPayload && service) {
-          db.insertPayment({
-            id: randomUUID(),
-            serviceId: service.id,
-            agentAddress: paymentPayload.payload.authorization.from,
-            txHash: "pending",
-            network: service.network,
-            amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
-            status: "failed",
-            createdAt: Date.now(),
-          });
-        }
+        settlementError = err instanceof Error ? err.message : String(err);
+        console.error("Settlement failed:", settlementError);
       }
 
-      if (txHash && paymentPayload && service) {
-        db.insertPayment({
-          id: randomUUID(),
-          serviceId: service.id,
-          agentAddress: paymentPayload.payload.authorization.from,
-          txHash,
-          network: service.network,
-          amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
-          status: "settled",
-          createdAt: Date.now(),
-        });
+      db.insertPayment({
+        id: randomUUID(),
+        serviceId: service.id,
+        agentAddress: paymentPayload.payload.authorization.from,
+        txHash: txHash ?? "failed",
+        network: service.network,
+        amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
+        status: txHash ? "settled" : "failed",
+        createdAt: Date.now(),
+      });
 
-        const response = new Response(backendResponse.body, backendResponse);
-        response.headers.set("PAYMENT-RESPONSE", Buffer.from(JSON.stringify({ txHash })).toString("base64"));
-        return response;
-      }
+      // Always attach PAYMENT-RESPONSE so the client knows what happened
+      const paymentResponse = txHash
+        ? { txHash }
+        : { txHash: null, settlementError };
+
+      responseHeaders.set(
+        "PAYMENT-RESPONSE",
+        Buffer.from(JSON.stringify(paymentResponse)).toString("base64")
+      );
+      return new Response(bodyBuffer, {
+        status: backendResponse.status,
+        statusText: backendResponse.statusText,
+        headers: responseHeaders,
+      });
     }
 
-    return backendResponse;
+    return new Response(bodyBuffer, {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      headers: responseHeaders,
+    });
   });
 
   return app;

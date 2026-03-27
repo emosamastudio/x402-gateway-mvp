@@ -20,7 +20,7 @@ describe("POST /services", () => {
         name: "Weather API",
         backendUrl: "http://localhost:3001",
         priceAmount: "0.001",
-        network: "base-sepolia",
+        network: "optimism-sepolia",
         recipient: "0x1111111111111111111111111111111111111111",
         minReputation: 0,
       }),

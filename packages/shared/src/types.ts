@@ -1,11 +1,11 @@
-export type Network = "base-sepolia" | "polygon-amoy";
+export type Network = "optimism-sepolia" | "sepolia";
 
 export interface Service {
   id: string;
   name: string;
   backendUrl: string;
-  priceAmount: string;   // e.g. "0.001" (human-readable USDC)
-  priceCurrency: "USDC";
+  priceAmount: string;   // e.g. "0.001" (human-readable DMHKD)
+  priceCurrency: "DMHKD";
   network: Network;
   recipient: string;     // Provider wallet address (checksummed)
   minReputation: number; // 0 = no restriction
@@ -32,12 +32,13 @@ export interface AgentInfo {
 
 export interface PaymentRequirement {
   network: Network;
-  maxAmountRequired: string; // USDC in smallest unit (6 decimals), e.g. "1000" = $0.001
+  maxAmountRequired: string; // DMHKD in smallest unit (6 decimals), e.g. "1000" = 0.001
   resource: string;
   description: string;
   payTo: string;
   maxTimeoutSeconds: number;
-  asset: string;             // USDC contract address
+  asset: string;             // DMHKD contract address
+  domainSeparator: string;   // EIP-712 domain separator (bytes32 hex), read from contract DOMAIN_SEPARATOR()
 }
 
 export interface TransferAuthorization {

@@ -3,7 +3,7 @@ import { lookupAgent } from "../api.js";
 
 export function Agents() {
   const [address, setAddress] = useState("");
-  const [network, setNetwork] = useState("base-sepolia");
+  const [network, setNetwork] = useState("optimism-sepolia");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +32,8 @@ export function Agents() {
           onChange={(e) => setAddress(e.target.value)} required
         />
         <select style={{ width: "100%", padding: "8px 12px", background: "#1a2236", border: "1px solid #1e2d45", borderRadius: 8, color: "#e2e8f0", fontSize: 14, marginBottom: 12 }} value={network} onChange={(e) => setNetwork(e.target.value)}>
-          <option value="base-sepolia">Base Sepolia</option>
-          <option value="polygon-amoy">Polygon Amoy</option>
+          <option value="optimism-sepolia">Optimism Sepolia</option>
+          <option value="sepolia">Ethereum Sepolia</option>
         </select>
         <button type="submit" disabled={loading} style={{ padding: "10px 24px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
           {loading ? "Looking up..." : "Lookup"}

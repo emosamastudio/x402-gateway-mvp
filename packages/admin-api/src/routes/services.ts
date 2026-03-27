@@ -16,7 +16,7 @@ servicesRouter.post("/", async (c) => {
   const service = {
     ...parsed.data,
     id: `svc_${randomUUID()}`,
-    priceCurrency: "USDC" as const,
+    priceCurrency: "DMHKD" as const,
     createdAt: Date.now(),
   };
   db.insertService(service);

@@ -4,6 +4,7 @@ const NAV = [
   { path: "/", label: "Services" },
   { path: "/payments", label: "Payments" },
   { path: "/agents", label: "Agents" },
+  { path: "/test", label: "Test" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

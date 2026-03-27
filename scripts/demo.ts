@@ -14,7 +14,7 @@
 
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { createWalletClient, http, parseUnits } from "viem";
-import { baseSepolia } from "viem/chains";
+import { optimismSepolia } from "viem/chains";
 import type { PaymentPayload, PaymentRequirement } from "@x402-gateway/shared";
 
 const ADMIN_URL = "http://localhost:8403";
@@ -34,7 +34,7 @@ const createRes = await fetch(`${ADMIN_URL}/services`, {
     name: "Demo Echo API",
     backendUrl: "https://httpbin.org",
     priceAmount: "0.001",
-    network: "base-sepolia",
+    network: "optimism-sepolia",
     recipient: agentAccount.address, // Self-payment for demo
     minReputation: 0,
   }),
@@ -53,22 +53,22 @@ console.log(`   Required: ${paymentInfo.requirement.maxAmountRequired} USDC unit
 
 // Step 3: Build payment signature (EIP-3009 TransferWithAuthorization)
 console.log("3. Signing payment authorization...");
-const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const DMHKD_OPTIMISM_SEPOLIA = "0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6";
 const now = Math.floor(Date.now() / 1000);
 const nonce = `0x${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")}`;
 
 const walletClient = createWalletClient({
   account: agentAccount,
-  chain: baseSepolia,
-  transport: http("https://sepolia.base.org"),
+  chain: optimismSepolia,
+  transport: http("https://sepolia.optimism.io"),
 });
 
 const signature = await walletClient.signTypedData({
   domain: {
-    name: "USD Coin",
+    name: "DMHKD",
     version: "2",
-    chainId: 84532,
-    verifyingContract: USDC_BASE_SEPOLIA,
+    chainId: 11155420,
+    verifyingContract: DMHKD_OPTIMISM_SEPOLIA,
   },
   types: {
     TransferWithAuthorization: [
@@ -94,7 +94,7 @@ const signature = await walletClient.signTypedData({
 const payload: PaymentPayload = {
   x402Version: 1,
   scheme: "exact",
-  network: "base-sepolia",
+  network: "optimism-sepolia",
   payload: {
     signature,
     authorization: {

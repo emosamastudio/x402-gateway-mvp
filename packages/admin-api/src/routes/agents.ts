@@ -7,9 +7,9 @@ export const agentsRouter = new Hono();
 
 agentsRouter.get("/:address", async (c) => {
   const address = c.req.param("address").toLowerCase();
-  const networkParsed = NetworkSchema.safeParse(c.req.query("network") ?? "base-sepolia");
+  const networkParsed = NetworkSchema.safeParse(c.req.query("network") ?? "optimism-sepolia");
   if (!networkParsed.success) {
-    return c.json({ error: "Invalid network. Must be base-sepolia or polygon-amoy" }, 400);
+    return c.json({ error: "Invalid network. Must be optimism-sepolia or sepolia" }, 400);
   }
   const network = networkParsed.data;
 

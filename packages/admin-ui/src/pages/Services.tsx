@@ -21,7 +21,7 @@ export function Services() {
               <span style={{ fontSize: 12, color: "#60a5fa", background: "#1e3a5f", padding: "2px 10px", borderRadius: 6 }}>{s.network}</span>
             </div>
             <div style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>{s.backendUrl}</div>
-            <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{s.priceAmount} USDC / request · min reputation: {s.minReputation}</div>
+            <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>{s.priceAmount} DMHKD / request · min reputation: {s.minReputation}</div>
           </div>
         ))}
         {services.length === 0 && <div style={{ color: "#475569", fontSize: 14 }}>No services registered yet.</div>}

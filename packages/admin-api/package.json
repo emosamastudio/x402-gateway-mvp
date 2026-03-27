@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "dev": "node dist/index.js",
+    "dev": "node --env-file=../../.env dist/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

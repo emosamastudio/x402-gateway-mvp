@@ -20,7 +20,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: false, reputation: 0 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ minReputation: 0, network: "base-sepolia" } as any)));
+    app.use("*", identityMiddleware(() => ({ minReputation: 0, network: "optimism-sepolia" } as any)));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -35,7 +35,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: true, reputation: 30 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ minReputation: 50, network: "base-sepolia" } as any)));
+    app.use("*", identityMiddleware(() => ({ minReputation: 50, network: "optimism-sepolia" } as any)));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -50,7 +50,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: true, reputation: 80 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ minReputation: 50, network: "base-sepolia" } as any)));
+    app.use("*", identityMiddleware(() => ({ minReputation: 50, network: "optimism-sepolia" } as any)));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {

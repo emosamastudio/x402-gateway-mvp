@@ -15,8 +15,8 @@ describe("Database", () => {
       name: "Weather API",
       backendUrl: "http://localhost:3001",
       priceAmount: "0.001",
-      priceCurrency: "USDC",
-      network: "base-sepolia",
+      priceCurrency: "DMHKD",
+      network: "optimism-sepolia",
       recipient: "0x1111111111111111111111111111111111111111",
       minReputation: 0,
       createdAt: 1000,
@@ -29,12 +29,12 @@ describe("Database", () => {
   it("lists all services", () => {
     db.insertService({
       id: "svc_1", name: "A", backendUrl: "http://a.com",
-      priceAmount: "0.001", priceCurrency: "USDC", network: "base-sepolia",
+      priceAmount: "0.001", priceCurrency: "USDC", network: "optimism-sepolia",
       recipient: "0x1111111111111111111111111111111111111111", minReputation: 0, createdAt: 1,
     });
     db.insertService({
       id: "svc_2", name: "B", backendUrl: "http://b.com",
-      priceAmount: "0.002", priceCurrency: "USDC", network: "polygon-amoy",
+      priceAmount: "0.002", priceCurrency: "USDC", network: "sepolia",
       recipient: "0x2222222222222222222222222222222222222222", minReputation: 50, createdAt: 2,
     });
     expect(db.listServices()).toHaveLength(2);
@@ -43,12 +43,12 @@ describe("Database", () => {
   it("inserts and queries payments", () => {
     db.insertService({
       id: "svc_1", name: "A", backendUrl: "http://a.com",
-      priceAmount: "0.001", priceCurrency: "USDC", network: "base-sepolia",
+      priceAmount: "0.001", priceCurrency: "USDC", network: "optimism-sepolia",
       recipient: "0x1111111111111111111111111111111111111111", minReputation: 0, createdAt: 1,
     });
     db.insertPayment({
       id: "pay_1", serviceId: "svc_1",
-      agentAddress: "0xaaaa", txHash: "0xtx1", network: "base-sepolia",
+      agentAddress: "0xaaaa", txHash: "0xtx1", network: "optimism-sepolia",
       amount: "0.001", status: "settled", createdAt: 2,
     });
     const payments = db.listPayments();

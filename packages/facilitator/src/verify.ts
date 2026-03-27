@@ -1,18 +1,40 @@
-import { verifyTypedData } from "viem";
+import { keccak256, encodeAbiParameters, parseAbiParameters, recoverAddress, concat } from "viem";
 import type { PaymentPayload, PaymentRequirement, VerifyResult } from "@x402-gateway/shared";
-import { USDC_ADDRESSES, CHAIN_IDS } from "@x402-gateway/chain";
+import { DMHKD_ADDRESSES, getDomainSeparator } from "@x402-gateway/chain";
 import { globalNonceStore } from "./nonce.js";
 
-const TRANSFER_WITH_AUTHORIZATION_TYPES = {
-  TransferWithAuthorization: [
-    { name: "from", type: "address" },
-    { name: "to", type: "address" },
-    { name: "value", type: "uint256" },
-    { name: "validAfter", type: "uint256" },
-    { name: "validBefore", type: "uint256" },
-    { name: "nonce", type: "bytes32" },
-  ],
-} as const;
+// keccak256("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)")
+const TRANSFER_WITH_AUTHORIZATION_TYPEHASH = keccak256(
+  new TextEncoder().encode(
+    "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+  )
+);
+
+/**
+ * Compute the EIP-712 digest for TransferWithAuthorization using the provided domain separator.
+ * We use the actual on-chain DOMAIN_SEPARATOR() value rather than computing it from domain fields,
+ * because the proxy contract's _DOMAIN_SEPARATOR_SLOT may not have been initialized via initializeV2.
+ */
+function computeTransferAuthDigest(
+  from: string, to: string, value: bigint,
+  validAfter: bigint, validBefore: bigint, nonce: string,
+  domainSeparator: `0x${string}`
+): `0x${string}` {
+  const structHash = keccak256(encodeAbiParameters(
+    parseAbiParameters("bytes32, address, address, uint256, uint256, uint256, bytes32"),
+    [
+      TRANSFER_WITH_AUTHORIZATION_TYPEHASH,
+      from as `0x${string}`,
+      to as `0x${string}`,
+      value,
+      validAfter,
+      validBefore,
+      nonce as `0x${string}`,
+    ]
+  ));
+  // "\x19\x01" prefix per EIP-191
+  return keccak256(concat(["0x1901", domainSeparator, structHash]));
+}
 
 export async function verifyPayment(
   payload: PaymentPayload,
@@ -51,32 +73,27 @@ export async function verifyPayment(
     return { isValid: false, error: "Payment nonce already used (replay attack)" };
   }
 
-  // Verify EIP-712 signature
-  const usdcAddress = USDC_ADDRESSES[payload.network];
-  const chainId = CHAIN_IDS[payload.network];
+  // Read the actual domain separator from the contract (cached after first call).
+  // This avoids the mismatch caused by initializeV2 not being called on the proxy.
+  const domainSeparator = await getDomainSeparator(payload.network);
 
-  const isSignatureValid = await verifyTypedData({
-    address: authorization.from as `0x${string}`,
-    domain: {
-      name: "USD Coin",
-      version: "2",
-      chainId,
-      verifyingContract: usdcAddress,
-    },
-    types: TRANSFER_WITH_AUTHORIZATION_TYPES,
-    primaryType: "TransferWithAuthorization",
-    message: {
-      from: authorization.from as `0x${string}`,
-      to: authorization.to as `0x${string}`,
-      value: BigInt(authorization.value),
-      validAfter: BigInt(authorization.validAfter),
-      validBefore: BigInt(authorization.validBefore),
-      nonce: authorization.nonce as `0x${string}`,
-    },
-    signature: signature as `0x${string}`,
-  });
+  const digest = computeTransferAuthDigest(
+    authorization.from, authorization.to,
+    BigInt(authorization.value),
+    BigInt(authorization.validAfter),
+    BigInt(authorization.validBefore),
+    authorization.nonce,
+    domainSeparator
+  );
 
-  if (!isSignatureValid) {
+  let recovered: string;
+  try {
+    recovered = await recoverAddress({ hash: digest, signature: signature as `0x${string}` });
+  } catch {
+    return { isValid: false, error: "Malformed signature" };
+  }
+
+  if (recovered.toLowerCase() !== authorization.from.toLowerCase()) {
     return { isValid: false, error: "Invalid payment signature" };
   }
 

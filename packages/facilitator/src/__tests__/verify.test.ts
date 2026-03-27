@@ -10,19 +10,19 @@ vi.mock("viem", async (importOriginal) => {
 import { verifyTypedData } from "viem";
 
 const mockRequirement: PaymentRequirement = {
-  network: "base-sepolia",
+  network: "optimism-sepolia",
   maxAmountRequired: "1000",
   resource: "https://example.com/api",
   description: "Test API",
   payTo: "0x1111111111111111111111111111111111111111",
   maxTimeoutSeconds: 300,
-  asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  asset: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
 };
 
 const mockPayload: PaymentPayload = {
   x402Version: 1,
   scheme: "exact",
-  network: "base-sepolia",
+  network: "optimism-sepolia",
   payload: {
     signature: "0x" + "a".repeat(130),
     authorization: {
@@ -101,7 +101,7 @@ describe("verifyPayment", () => {
   it("returns valid=false when payment network does not match requirement network", async () => {
     const wrongNetworkPayload: PaymentPayload = {
       ...mockPayload,
-      network: "polygon-amoy",
+      network: "sepolia",
     };
     const result = await verifyPayment(wrongNetworkPayload, mockRequirement);
     expect(result.isValid).toBe(false);

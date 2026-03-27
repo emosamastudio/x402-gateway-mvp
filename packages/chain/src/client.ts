@@ -4,8 +4,8 @@ import { CHAINS } from "./networks.js";
 import type { Network } from "@x402-gateway/shared";
 
 const RPC_URLS: Record<Network, string> = {
-  "base-sepolia": process.env.BASE_SEPOLIA_RPC ?? "https://sepolia.base.org",
-  "polygon-amoy": process.env.POLYGON_AMOY_RPC ?? "https://rpc-amoy.polygon.technology",
+  "optimism-sepolia": process.env.OPTIMISM_SEPOLIA_RPC ?? "https://sepolia.optimism.io",
+  "sepolia": process.env.SEPOLIA_RPC ?? "https://rpc.sepolia.org",
 };
 
 export function getPublicClient(network: Network) {
