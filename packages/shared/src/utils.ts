@@ -2,8 +2,11 @@ import { getAddress } from "viem";
 
 /** Convert human-readable USDC amount to smallest unit (6 decimals) */
 export function toUsdcUnits(amount: string): bigint {
+  if (!amount || !/^\d+(\.\d{1,6})?$/.test(amount)) {
+    throw new Error(`Invalid USDC amount: "${amount}"`);
+  }
   const [whole, frac = ""] = amount.split(".");
-  const fracPadded = frac.padEnd(6, "0").slice(0, 6);
+  const fracPadded = frac.padEnd(6, "0");
   return BigInt(whole + fracPadded);
 }
 
