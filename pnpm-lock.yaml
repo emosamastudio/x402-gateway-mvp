@@ -34,6 +34,28 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.37)
 
+  packages/facilitator:
+    dependencies:
+      '@x402-gateway/chain':
+        specifier: workspace:*
+        version: link:../chain
+      '@x402-gateway/shared':
+        specifier: workspace:*
+        version: link:../shared
+      hono:
+        specifier: ^4.4.0
+        version: 4.12.9
+      viem:
+        specifier: ^2.17.0
+        version: 2.47.6(typescript@5.9.3)(zod@3.25.76)
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.37)
+
   packages/shared:
     dependencies:
       viem:
@@ -498,6 +520,10 @@ packages:
   get-stream@8.0.1:
     resolution: {integrity: sha512-VaUJspBffn/LMCJVoMvSAdmscJyS1auj5Zulnn5UoYcY531UWmdwhRWkcGKnGU93m5HSXP9LP2usOryrBtQowA==}
     engines: {node: '>=16'}
+
+  hono@4.12.9:
+    resolution: {integrity: sha512-wy3T8Zm2bsEvxKZM5w21VdHDDcwVS1yUFFY6i8UobSsKfFceT7TOwhbhfKsDyx7tYQlmRM5FLpIuYvNFyjctiA==}
+    engines: {node: '>=16.9.0'}
 
   human-signals@5.0.0:
     resolution: {integrity: sha512-AXcZb6vzzrFAUE61HnN4mpLqd/cSIwNQjtNWR0euPm6y0iqx3G4gOXaIDdtdDwZmhwe82LA6+zinmW4UBWVePQ==}
@@ -1094,6 +1120,8 @@ snapshots:
   get-func-name@2.0.2: {}
 
   get-stream@8.0.1: {}
+
+  hono@4.12.9: {}
 
   human-signals@5.0.0: {}
 
