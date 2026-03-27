@@ -18,4 +18,9 @@ describe("NonceStore", () => {
     store.markUsed("0xaaa");
     expect(store.isUsed("0xbbb")).toBe(false);
   });
+
+  it("treats mixed-case nonces as the same", () => {
+    store.markUsed("0xAABBCC");
+    expect(store.isUsed("0xaabbcc")).toBe(true);
+  });
 });

@@ -26,6 +26,11 @@ export async function verifyPayment(
     return { isValid: false, error: "Payment expired" };
   }
 
+  // Check validAfter (payment not yet active)
+  if (Number(authorization.validAfter) > now) {
+    return { isValid: false, error: "Payment not yet valid" };
+  }
+
   // Check amount
   if (BigInt(authorization.value) < BigInt(requirement.maxAmountRequired)) {
     return { isValid: false, error: "Payment amount too low" };

@@ -80,4 +80,21 @@ describe("verifyPayment", () => {
     expect(result.isValid).toBe(false);
     expect(result.error).toMatch(/expired/i);
   });
+
+  it("returns valid=false when payment is not yet valid", async () => {
+    vi.mocked(verifyTypedData).mockResolvedValue(true);
+    const futurePayload: PaymentPayload = {
+      ...mockPayload,
+      payload: {
+        ...mockPayload.payload,
+        authorization: {
+          ...mockPayload.payload.authorization,
+          validAfter: String(Math.floor(Date.now() / 1000) + 3600), // 1 hour in future
+        },
+      },
+    };
+    const result = await verifyPayment(futurePayload, mockRequirement);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toMatch(/not yet valid/i);
+  });
 });

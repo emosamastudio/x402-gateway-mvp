@@ -40,27 +40,31 @@ export async function settlePayment(
   const usdcAddress = USDC_ADDRESSES[network];
   const { v, r, s } = splitSignature(signature);
 
-  const hash = await walletClient.writeContract({
-    address: usdcAddress,
-    abi: USDC_TRANSFER_ABI,
-    functionName: "transferWithAuthorization",
-    args: [
-      authorization.from as `0x${string}`,
-      authorization.to as `0x${string}`,
-      BigInt(authorization.value),
-      BigInt(authorization.validAfter),
-      BigInt(authorization.validBefore),
-      authorization.nonce as `0x${string}`,
-      v,
-      r,
-      s,
-    ],
-  });
+  try {
+    const hash = await walletClient.writeContract({
+      address: usdcAddress,
+      abi: USDC_TRANSFER_ABI,
+      functionName: "transferWithAuthorization",
+      args: [
+        authorization.from as `0x${string}`,
+        authorization.to as `0x${string}`,
+        BigInt(authorization.value),
+        BigInt(authorization.validAfter),
+        BigInt(authorization.validBefore),
+        authorization.nonce as `0x${string}`,
+        v,
+        r,
+        s,
+      ],
+    });
 
-  await publicClient.waitForTransactionReceipt({ hash });
+    await publicClient.waitForTransactionReceipt({ hash });
 
-  // Mark nonce as used only after confirmed on-chain
-  globalNonceStore.markUsed(authorization.nonce);
+    // Mark nonce as used only after confirmed on-chain
+    globalNonceStore.markUsed(authorization.nonce);
 
-  return { txHash: hash, network };
+    return { txHash: hash, network };
+  } catch (err) {
+    throw new Error(`Settlement failed for nonce ${authorization.nonce}: ${String(err)}`);
+  }
 }
