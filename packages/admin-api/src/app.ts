@@ -11,6 +11,17 @@ export function createAdminApp() {
   app.use("*", cors());
 
   app.get("/health", (c) => c.json({ status: "ok" }));
+
+  // Require API key for all non-health routes
+  const adminApiKey = process.env.ADMIN_API_KEY;
+  if (adminApiKey) {
+    app.use("*", (c, next) => {
+      const key = c.req.header("Authorization")?.replace("Bearer ", "");
+      if (key !== adminApiKey) return c.json({ error: "Unauthorized" }, 401);
+      return next();
+    });
+  }
+
   app.route("/services", servicesRouter);
   app.route("/payments", paymentsRouter);
   app.route("/agents", agentsRouter);
