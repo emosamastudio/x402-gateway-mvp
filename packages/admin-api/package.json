@@ -1,5 +1,5 @@
 {
-  "name": "@x402-gateway/admin-api",
+  "name": "@x402-gateway-mvp/admin-api",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -9,11 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x402-gateway/chain": "workspace:*",
-    "@x402-gateway/core": "workspace:*",
-    "@x402-gateway/shared": "workspace:*",
+    "@x402-gateway-mvp/chain": "workspace:*",
+    "@x402-gateway-mvp/core": "workspace:*",
+    "@x402-gateway-mvp/shared": "workspace:*",
     "@hono/node-server": "^1.12.0",
-    "hono": "^4.4.0"
+    "hono": "^4.4.0",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -1,11 +1,36 @@
 import type { Context, Next } from "hono";
-import type { Service } from "@x402-gateway/shared";
-import { checkAgentIdentity } from "@x402-gateway/chain";
+import type { Service } from "@x402-gateway-mvp/shared";
+import { checkAgentIdentity } from "@x402-gateway-mvp/chain";
 import { getDb } from "../db.js";
+import { randomUUID } from "crypto";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 type ServiceResolver = (path: string) => Service | undefined;
+
+function recordUnauthorized(c: Context, service: Service, agentAddress: string, errorReason: string, httpStatus: number) {
+  const now = Date.now();
+  const db = getDb();
+  db.insertRequest({
+    id: randomUUID(),
+    serviceId: service.id,
+    agentAddress,
+    method: c.req.method,
+    path: c.req.path,
+    network: service.network,
+    gatewayStatus: "unauthorized",
+    httpStatus,
+    responseStatus: 0,
+    responseBody: "",
+    errorReason,
+    paymentId: "",
+    challengeAt: 0,
+    verifiedAt: 0,
+    proxyAt: 0,
+    settledAt: 0,
+    createdAt: now,
+  });
+}
 
 export function identityMiddleware(resolveService: ServiceResolver) {
   return async (c: Context, next: Next) => {
@@ -16,6 +41,7 @@ export function identityMiddleware(resolveService: ServiceResolver) {
                          c.req.header("x-agent-address");
 
     if (!agentAddress) {
+      recordUnauthorized(c, service, "", "Agent address required (X-Agent-Address header)", 403);
       return c.json({ error: "Agent address required (X-Agent-Address header)" }, 403);
     }
 
@@ -40,6 +66,7 @@ export function identityMiddleware(resolveService: ServiceResolver) {
       if (cached) {
         return enforcePolicy(c, next, service, cached.isRegistered, cached.reputation, agentAddress);
       }
+      recordUnauthorized(c, service, agentAddress, "Chain unavailable, cannot verify agent identity", 503);
       return c.json({ error: "Chain unavailable, cannot verify agent identity" }, 503);
     }
 
@@ -55,9 +82,11 @@ function enforcePolicy(
   isRegistered: boolean, reputation: number, agentAddress: string
 ) {
   if (!isRegistered) {
+    recordUnauthorized(c, service, agentAddress, "Agent not registered (ERC-8004)", 403);
     return c.json({ error: "Agent not registered (ERC-8004)", agentAddress }, 403);
   }
   if (reputation < service.minReputation) {
+    recordUnauthorized(c, service, agentAddress, `Agent reputation insufficient (${reputation} < ${service.minReputation})`, 403);
     return c.json({
       error: "Agent reputation insufficient",
       current: reputation,

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { verifyPayment } from "./verify.js";
-import { PaymentPayloadSchema } from "@x402-gateway/shared";
-import type { PaymentRequirement } from "@x402-gateway/shared";
+import { PaymentPayloadSchema } from "@x402-gateway-mvp/shared";
+import type { PaymentRequirement } from "@x402-gateway-mvp/shared";
 
 export function createFacilitatorApp() {
   const app = new Hono();

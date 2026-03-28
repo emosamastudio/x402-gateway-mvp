@@ -1,5 +1,5 @@
-import type { Network, SettleResult, TransferAuthorization } from "@x402-gateway/shared";
-import { getWalletClient, DMHKD_ADDRESSES } from "@x402-gateway/chain";
+import type { Network, SettleResult, TransferAuthorization } from "@x402-gateway-mvp/shared";
+import { getWalletClient } from "@x402-gateway-mvp/chain";
 import { globalNonceStore } from "./nonce.js";
 
 const DMHKD_TRANSFER_ABI = [
@@ -33,10 +33,10 @@ function splitSignature(sig: string): { v: number; r: `0x${string}`; s: `0x${str
 export async function settlePayment(
   authorization: TransferAuthorization,
   signature: string,
-  network: Network
+  network: Network,
+  tokenAddress: string,
 ): Promise<SettleResult> {
   const walletClient = getWalletClient(network);
-  const dmhkdAddress = DMHKD_ADDRESSES[network];
   const { v, r, s } = splitSignature(signature);
 
   // Extract a concise revert reason from viem errors
@@ -54,7 +54,7 @@ export async function settlePayment(
 
   try {
     const hash = await walletClient.writeContract({
-      address: dmhkdAddress,
+      address: tokenAddress as `0x${string}`,
       abi: DMHKD_TRANSFER_ABI,
       functionName: "transferWithAuthorization",
       args: [

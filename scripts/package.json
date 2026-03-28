@@ -1,5 +1,5 @@
 {
-  "name": "x402-gateway-scripts",
+  "name": "x402-gateway-mvp-scripts",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@x402-gateway/shared": "workspace:*",
+    "@x402-gateway-mvp/shared": "workspace:*",
     "viem": "^2.17.0"
   }
 }

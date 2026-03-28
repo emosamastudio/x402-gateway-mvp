@@ -1,6 +1,6 @@
 import { keccak256, encodeAbiParameters, parseAbiParameters, recoverAddress, concat } from "viem";
-import type { PaymentPayload, PaymentRequirement, VerifyResult } from "@x402-gateway/shared";
-import { DMHKD_ADDRESSES, getDomainSeparator } from "@x402-gateway/chain";
+import type { PaymentPayload, PaymentRequirement, VerifyResult } from "@x402-gateway-mvp/shared";
+import { getDomainSeparator } from "@x402-gateway-mvp/chain";
 import { globalNonceStore } from "./nonce.js";
 
 // keccak256("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)")
@@ -74,8 +74,8 @@ export async function verifyPayment(
   }
 
   // Read the actual domain separator from the contract (cached after first call).
-  // This avoids the mismatch caused by initializeV2 not being called on the proxy.
-  const domainSeparator = await getDomainSeparator(payload.network);
+  // Uses the token contract address from the payment requirement.
+  const domainSeparator = await getDomainSeparator(payload.network, requirement.asset);
 
   const digest = computeTransferAuthDigest(
     authorization.from, authorization.to,

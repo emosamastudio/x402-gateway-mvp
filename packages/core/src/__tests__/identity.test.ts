@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
 
-vi.mock("@x402-gateway/chain", () => ({
+vi.mock("@x402-gateway-mvp/chain", () => ({
   checkAgentIdentity: vi.fn(),
 }));
 
@@ -9,10 +9,11 @@ vi.mock("../db.js", () => ({
   getDb: vi.fn(() => ({
     getAgentCache: vi.fn(() => undefined),
     upsertAgentCache: vi.fn(),
+    insertRequest: vi.fn(),
   })),
 }));
 
-import { checkAgentIdentity } from "@x402-gateway/chain";
+import { checkAgentIdentity } from "@x402-gateway-mvp/chain";
 import { identityMiddleware } from "../middleware/identity.js";
 
 describe("identityMiddleware", () => {

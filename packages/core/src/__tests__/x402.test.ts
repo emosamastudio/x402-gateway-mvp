@@ -1,18 +1,29 @@
 import { describe, it, expect, vi } from "vitest";
 import { Hono } from "hono";
 
-vi.mock("@x402-gateway/facilitator", () => ({
+vi.mock("@x402-gateway-mvp/facilitator", () => ({
   verifyPayment: vi.fn().mockResolvedValue({ isValid: true }),
   settlePayment: vi.fn().mockResolvedValue({ txHash: "0xtx1", network: "optimism-sepolia" }),
 }));
 
+vi.mock("@x402-gateway-mvp/chain", () => ({
+  DMHKD_ADDRESSES: { "optimism-sepolia": "0x35348A2c0e11bF0F5CEf7E1e98e04dA23D8B3b60" },
+  getDomainSeparator: vi.fn().mockResolvedValue("0x" + "00".repeat(32)),
+}));
+
+vi.mock("../db.js", () => ({
+  getDb: vi.fn(() => ({
+    insertRequest: vi.fn(),
+  })),
+}));
+
 import { x402Middleware } from "../middleware/x402.js";
-import type { Service } from "@x402-gateway/shared";
+import type { Service } from "@x402-gateway-mvp/shared";
 
 const mockService: Service = {
-  id: "svc_1", name: "Test API", backendUrl: "http://backend:3001",
+  id: "svc_1", name: "Test API", gatewayPath: "/api", backendUrl: "http://backend:3001",
   priceAmount: "0.001", priceCurrency: "DMHKD", network: "optimism-sepolia",
-  recipient: "0x1111111111111111111111111111111111111111", minReputation: 0, createdAt: 1,
+  recipient: "0x1111111111111111111111111111111111111111", apiKey: "", minReputation: 0, createdAt: 1,
 };
 
 describe("x402Middleware", () => {

@@ -1,5 +1,5 @@
 {
-  "name": "@x402-gateway/shared",
+  "name": "@x402-gateway-mvp/shared",
   "version": "0.1.0",
   "type": "module",
   "exports": {

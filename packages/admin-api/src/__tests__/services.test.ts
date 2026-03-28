@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@x402-gateway/core/src/db.js", () => ({
+vi.mock("@x402-gateway-mvp/core/src/db.js", () => ({
   getDb: vi.fn(() => ({
     insertService: vi.fn(),
     listServices: vi.fn(() => []),

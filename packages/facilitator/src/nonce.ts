@@ -1,14 +1,32 @@
-// In-memory nonce store — prevents replay attacks within a process lifetime.
-// For multi-process deployments, replace with Redis or SQLite-backed store.
-export class NonceStore {
-  private used = new Set<string>();
+// SQLite-backed nonce store — prevents replay attacks across restarts.
+// Falls back to in-memory Set when no DB provider is configured (testing).
 
-  isUsed(nonce: string): boolean {
-    return this.used.has(nonce.toLowerCase());
+type DbProvider = {
+  isNonceUsed(nonce: string): boolean;
+  markNonceUsed(nonce: string, network?: string, agentAddress?: string): void;
+};
+
+export class NonceStore {
+  private db: DbProvider | null = null;
+  // Fallback for tests / when DB is not yet configured
+  private memFallback = new Set<string>();
+
+  /** Inject the DB provider (call once at startup from core/index.ts) */
+  setDb(db: DbProvider): void {
+    this.db = db;
   }
 
-  markUsed(nonce: string): void {
-    this.used.add(nonce.toLowerCase());
+  isUsed(nonce: string): boolean {
+    if (this.db) return this.db.isNonceUsed(nonce);
+    return this.memFallback.has(nonce.toLowerCase());
+  }
+
+  markUsed(nonce: string, network: string = "", agentAddress: string = ""): void {
+    if (this.db) {
+      this.db.markNonceUsed(nonce, network, agentAddress);
+    } else {
+      this.memFallback.add(nonce.toLowerCase());
+    }
   }
 }
 

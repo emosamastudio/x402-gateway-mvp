@@ -4,6 +4,31 @@
 
 ---
 
+## 📚 文档 / Documentation
+
+完整的项目文档提供中英双语版本：
+
+| 中文文档 | English Docs | 说明 / Description |
+|---------|-------------|-------------------|
+| [文档首页](docs/zh/README.md) | [Docs Home](docs/en/README.md) | 文档索引 / Documentation index |
+| [项目概述](docs/zh/overview.md) | [Overview](docs/en/overview.md) | 协议原理与系统角色 / Protocol & system roles |
+| [系统架构](docs/zh/architecture.md) | [Architecture](docs/en/architecture.md) | 包依赖与请求流程 / Package deps & request flow |
+| [快速开始](docs/zh/getting-started.md) | [Getting Started](docs/en/getting-started.md) | 安装、配置、首次运行 / Install, config, first run |
+| [配置参考](docs/zh/configuration.md) | [Configuration](docs/en/configuration.md) | 全部环境变量 / All environment variables |
+| [支付生命周期](docs/zh/payment-lifecycle.md) | [Payment Lifecycle](docs/en/payment-lifecycle.md) | 10 种状态与状态机 / 10 statuses & state machine |
+| [Admin API](docs/zh/api-reference.md) | [Admin API](docs/en/api-reference.md) | 管理接口参考 / Admin API reference |
+| [Gateway API](docs/zh/gateway-api.md) | [Gateway API](docs/en/gateway-api.md) | 网关核心接口 / Gateway core API |
+| [Agent 集成](docs/zh/agent-integration.md) | [Agent Integration](docs/en/agent-integration.md) | 客户端集成指南 / Client integration guide |
+| [数据库](docs/zh/database.md) | [Database](docs/en/database.md) | 表结构与 API / Schema & DB API |
+| [包详解](docs/zh/packages.md) | [Packages](docs/en/packages.md) | 6 个包逐一说明 / Each package explained |
+| [管理界面](docs/zh/admin-ui.md) | [Admin UI](docs/en/admin-ui.md) | 9 个页面使用指南 / 9-page UI guide |
+| [部署运维](docs/zh/deployment.md) | [Deployment](docs/en/deployment.md) | 生产部署与监控 / Production deploy & monitoring |
+| [开发指南](docs/zh/development.md) | [Development](docs/en/development.md) | 开发规范与流程 / Dev conventions & workflows |
+| [测试](docs/zh/testing.md) | [Testing](docs/en/testing.md) | 25 个测试用例详解 / 25 test cases explained |
+| [类型参考](docs/zh/types.md) | [Types](docs/en/types.md) | TypeScript 类型与 Schema / TS types & Zod schemas |
+
+---
+
 ## 架构概览
 
 ```
@@ -37,9 +62,13 @@ cp .env.example .env
 
 ```env
 FACILITATOR_PRIVATE_KEY=0x你的私钥    # 负责广播结算交易的钱包
-OPTIMISM_SEPOLIA_RPC=https://opt-sepolia.g.alchemy.com/v2/<你的key>
-SEPOLIA_RPC=https://eth-sepolia.nodereal.io/v1/<你的key>
+ADMIN_API_KEY=change-me-in-production  # 管理 API 认证密钥
+DB_PATH=./gateway.db                   # SQLite 数据库路径（默认 ./gateway.db）
 ```
+
+> **DB_PATH**：指定 SQLite 数据库文件位置，默认为项目根目录下的 `gateway.db`。首次启动时自动创建并写入种子数据。
+>
+> **RPC 配置说明**：链 RPC 端点通过 Admin UI（RPC Endpoints 页面）或 Admin API 动态管理，无需在 `.env` 中配置。首次启动时系统会自动使用公共 RPC 作为默认值写入数据库。如需使用 Alchemy/Infura 等付费节点，请在 Admin UI 中添加或修改。
 
 ### 2. 安装依赖 & 构建
 
@@ -97,8 +126,8 @@ curl -X POST http://localhost:8403/services \
 ### 整体步骤
 
 ```
-1. 无头发起请求 → 收到 402 + 支付要求
-2. 构造 EIP-712 签名
+1. 直接发起请求（不带签名） → 收到 402 + 支付要求
+2. 根据 402 响应构造 EIP-712 签名
 3. 携带签名重发请求 → 收到 200 + 响应内容
 ```
 

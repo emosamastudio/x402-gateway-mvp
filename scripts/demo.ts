@@ -15,7 +15,7 @@
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { createWalletClient, http, parseUnits } from "viem";
 import { optimismSepolia } from "viem/chains";
-import type { PaymentPayload, PaymentRequirement } from "@x402-gateway/shared";
+import type { PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
 
 const ADMIN_URL = "http://localhost:8403";
 const GATEWAY_URL = "http://localhost:8402";

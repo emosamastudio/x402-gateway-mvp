@@ -2,8 +2,13 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { servicesRouter } from "./routes/services.js";
+import { providersRouter } from "./routes/providers.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { requestsRouter } from "./routes/requests.js";
 import { agentsRouter } from "./routes/agents.js";
+import { chainsRouter } from "./routes/chains.js";
+import { tokensRouter } from "./routes/tokens.js";
+import { rpcEndpointsRouter } from "./routes/rpc-endpoints.js";
 
 export function createAdminApp() {
   const app = new Hono();
@@ -25,8 +30,13 @@ export function createAdminApp() {
   }
 
   app.route("/services", servicesRouter);
+  app.route("/providers", providersRouter);
   app.route("/payments", paymentsRouter);
+  app.route("/requests", requestsRouter);
   app.route("/agents", agentsRouter);
+  app.route("/chains", chainsRouter);
+  app.route("/tokens", tokensRouter);
+  app.route("/rpc-endpoints", rpcEndpointsRouter);
 
   return app;
 }

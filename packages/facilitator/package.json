@@ -1,5 +1,5 @@
 {
-  "name": "@x402-gateway/facilitator",
+  "name": "@x402-gateway-mvp/facilitator",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x402-gateway/chain": "workspace:*",
-    "@x402-gateway/shared": "workspace:*",
+    "@x402-gateway-mvp/chain": "workspace:*",
+    "@x402-gateway-mvp/shared": "workspace:*",
     "hono": "^4.4.0",
     "viem": "^2.17.0"
   },

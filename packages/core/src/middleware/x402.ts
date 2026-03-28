@@ -1,20 +1,29 @@
 import type { Context, Next } from "hono";
-import type { Service, PaymentPayload, PaymentRequirement } from "@x402-gateway/shared";
-import { toUsdcUnits } from "@x402-gateway/shared";
-import { DMHKD_ADDRESSES, getDomainSeparator } from "@x402-gateway/chain";
-import { verifyPayment, settlePayment } from "@x402-gateway/facilitator";
+import type { Service, PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
+import { toUsdcUnits } from "@x402-gateway-mvp/shared";
+import { getDomainSeparator, getTokenConfig, getChainConfig } from "@x402-gateway-mvp/chain";
+import { verifyPayment, settlePayment } from "@x402-gateway-mvp/facilitator";
+import { getDb } from "../db.js";
+import { randomUUID } from "crypto";
 
 async function buildPaymentRequirement(service: Service, requestUrl: string): Promise<PaymentRequirement> {
-  const domainSeparator = await getDomainSeparator(service.network);
+  const token = getTokenConfig(service.tokenId);
+  const chain = getChainConfig(service.network);
+  const domainSeparator = await getDomainSeparator(service.network, token.contractAddress);
   return {
     network: service.network,
+    chainId: chain.chainId,
     maxAmountRequired: toUsdcUnits(service.priceAmount).toString(),
     resource: requestUrl,
     description: `Access to ${service.name}`,
     payTo: service.recipient,
     maxTimeoutSeconds: 300,
-    asset: DMHKD_ADDRESSES[service.network],
+    asset: token.contractAddress,
+    assetSymbol: token.symbol,
+    assetDecimals: token.decimals,
     domainSeparator,
+    domainName: token.domainName,
+    domainVersion: token.domainVersion,
   };
 }
 
@@ -25,32 +34,109 @@ export function x402Middleware(resolveService: ServiceResolver) {
     const service = resolveService(c.req.path);
     if (!service) return next(); // Not a protected route — pass through
 
+    const db = getDb();
+    const agentAddress = c.req.header("X-Agent-Address") ?? c.req.header("x-agent-address") ?? "";
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
     const requirement = await buildPaymentRequirement(service, c.req.url);
+    const now = Date.now();
 
-    // No payment — return 402
+    // ── No payment header → 402 challenge (create request record) ────
     if (!paymentHeader) {
+      const requestId = randomUUID();
+      db.insertRequest({
+        id: requestId,
+        serviceId: service.id,
+        agentAddress,
+        method: c.req.method,
+        path: c.req.path,
+        network: service.network,
+        gatewayStatus: "payment_required",
+        httpStatus: 402,
+        responseStatus: 0,
+        responseBody: "",
+        errorReason: "",
+        paymentId: "",
+        challengeAt: now,
+        verifiedAt: 0,
+        proxyAt: 0,
+        settledAt: 0,
+        createdAt: now,
+      });
       return c.json({ error: "Payment Required", requirement }, 402);
     }
+
+    // ── Has payment header → try to resume existing request record ────
+    const pending = db.findPendingRequest(service.id, agentAddress);
+    const requestId = pending?.id ?? randomUUID();
 
     // Decode payment payload
     let payload: PaymentPayload;
     try {
       payload = JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8"));
     } catch {
+      if (pending) {
+        db.updateRequest(requestId, {
+          gatewayStatus: "payment_rejected",
+          errorReason: "Invalid payment header (malformed base64/JSON)",
+        });
+      } else {
+        db.insertRequest({
+          id: requestId, serviceId: service.id, agentAddress,
+          method: c.req.method, path: c.req.path, network: service.network,
+          gatewayStatus: "payment_rejected", httpStatus: 402,
+          responseStatus: 0, responseBody: "",
+          errorReason: "Invalid payment header (malformed base64/JSON)",
+          paymentId: "", challengeAt: 0, verifiedAt: 0, proxyAt: 0, settledAt: 0, createdAt: now,
+        });
+      }
       return c.json({ error: "Payment Required", reason: "Invalid payment header", requirement }, 402);
     }
 
     // Verify signature (off-chain)
     const verifyResult = await verifyPayment(payload, requirement);
     if (!verifyResult.isValid) {
+      if (pending) {
+        db.updateRequest(requestId, {
+          gatewayStatus: "payment_rejected",
+          errorReason: `Payment verification failed: ${verifyResult.error}`,
+        });
+      } else {
+        db.insertRequest({
+          id: requestId, serviceId: service.id, agentAddress,
+          method: c.req.method, path: c.req.path, network: service.network,
+          gatewayStatus: "payment_rejected", httpStatus: 402,
+          responseStatus: 0, responseBody: "",
+          errorReason: `Payment verification failed: ${verifyResult.error}`,
+          paymentId: "", challengeAt: 0, verifiedAt: 0, proxyAt: 0, settledAt: 0, createdAt: now,
+        });
+      }
       return c.json({ error: "Payment Required", reason: verifyResult.error, requirement }, 402);
     }
 
-    // Store payload in context for settlement after backend responds
+    // Payment verified — update record
+    if (pending) {
+      db.updateRequest(requestId, {
+        gatewayStatus: "verifying",
+        agentAddress: payload.payload.authorization.from || agentAddress,
+        verifiedAt: now,
+      });
+    } else {
+      db.insertRequest({
+        id: requestId, serviceId: service.id,
+        agentAddress: payload.payload.authorization.from || agentAddress,
+        method: c.req.method, path: c.req.path, network: service.network,
+        gatewayStatus: "verifying", httpStatus: 0,
+        responseStatus: 0, responseBody: "",
+        errorReason: "", paymentId: "",
+        challengeAt: 0, verifiedAt: now, proxyAt: 0, settledAt: 0, createdAt: now,
+      });
+    }
+
+    // Store payload & requestId in context for downstream handlers
     c.set("paymentPayload", payload);
     c.set("paymentRequirement", requirement);
     c.set("paymentService", service);
+    c.set("requestId", requestId);
 
     return next();
   };
@@ -60,12 +146,14 @@ export function x402Middleware(resolveService: ServiceResolver) {
 export async function settleAfterSuccess(c: Context): Promise<string | null> {
   const payload = c.get("paymentPayload") as PaymentPayload | undefined;
   const service = c.get("paymentService") as Service | undefined;
-  if (!payload || !service) return null;
+  const requirement = c.get("paymentRequirement") as PaymentRequirement | undefined;
+  if (!payload || !service || !requirement) return null;
 
   const result = await settlePayment(
     payload.payload.authorization,
     payload.payload.signature,
-    service.network
+    service.network,
+    requirement.asset,
   );
   return result.txHash;
 }

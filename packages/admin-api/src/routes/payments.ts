@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getDb } from "@x402-gateway/core/src/db.js";
+import { getDb } from "@x402-gateway-mvp/core/src/db.js";
 
 export const paymentsRouter = new Hono();
 

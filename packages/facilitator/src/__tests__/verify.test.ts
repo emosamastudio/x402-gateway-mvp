@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { verifyPayment } from "../verify.js";
-import type { PaymentPayload, PaymentRequirement } from "@x402-gateway/shared";
+import type { PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
 
 vi.mock("viem", async (importOriginal) => {
   const actual = await importOriginal<typeof import("viem")>();

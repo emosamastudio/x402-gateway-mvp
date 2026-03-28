@@ -1,5 +1,5 @@
 {
-  "name": "@x402-gateway/core",
+  "name": "@x402-gateway-mvp/core",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -19,9 +19,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@x402-gateway/chain": "workspace:*",
-    "@x402-gateway/facilitator": "workspace:*",
-    "@x402-gateway/shared": "workspace:*",
+    "@x402-gateway-mvp/chain": "workspace:*",
+    "@x402-gateway-mvp/facilitator": "workspace:*",
+    "@x402-gateway-mvp/shared": "workspace:*",
     "@hono/node-server": "^1.12.0",
     "better-sqlite3": "^12.8.0",
     "hono": "^4.4.0"
