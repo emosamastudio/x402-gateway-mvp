@@ -256,6 +256,7 @@ export interface TokenVerifyResult {
   eip712Domain: boolean;
   domainSeparator: string | null;
   domainSeparatorWarning?: string;
+  x402Compatible?: boolean;
   name?: string;
   symbol?: string;
   decimals?: number;
@@ -263,7 +264,7 @@ export interface TokenVerifyResult {
   domainVersion?: string;
   domainChainId?: number;
   domainVerifyingContract?: string;
-  domainNameSource?: string;
+  domainNameSource?: string; // "eip5267" = on-chain verified, "inferred" = derived from symbol
   domainNameWarning?: string;
   suggestedId?: string;
   error?: string;

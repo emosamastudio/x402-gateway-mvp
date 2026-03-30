@@ -1,13 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
 import { verifyPayment } from "../verify.js";
+import { globalNonceStore } from "../nonce.js";
 import type { PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
 
 vi.mock("viem", async (importOriginal) => {
   const actual = await importOriginal<typeof import("viem")>();
-  return { ...actual, verifyTypedData: vi.fn() };
+  return { ...actual, recoverAddress: vi.fn() };
 });
 
-import { verifyTypedData } from "viem";
+vi.mock("@x402-gateway-mvp/chain", () => ({
+  getDomainSeparator: vi.fn().mockResolvedValue("0x" + "00".repeat(32)),
+}));
+
+import { recoverAddress } from "viem";
 
 const mockRequirement: PaymentRequirement = {
   network: "optimism-sepolia",
@@ -38,20 +43,19 @@ const mockPayload: PaymentPayload = {
 
 describe("verifyPayment", () => {
   it("returns valid=true when signature and amounts are correct", async () => {
-    vi.mocked(verifyTypedData).mockResolvedValue(true);
+    vi.mocked(recoverAddress).mockResolvedValue("0x2222222222222222222222222222222222222222");
     const result = await verifyPayment(mockPayload, mockRequirement);
     expect(result.isValid).toBe(true);
   });
 
   it("returns valid=false when signature is invalid", async () => {
-    vi.mocked(verifyTypedData).mockResolvedValue(false);
+    vi.mocked(recoverAddress).mockResolvedValue("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
     const result = await verifyPayment(mockPayload, mockRequirement);
     expect(result.isValid).toBe(false);
     expect(result.error).toMatch(/signature/i);
   });
 
   it("returns valid=false when payment amount is too low", async () => {
-    vi.mocked(verifyTypedData).mockResolvedValue(true);
     const lowAmountPayload: PaymentPayload = {
       ...mockPayload,
       payload: {
@@ -65,7 +69,6 @@ describe("verifyPayment", () => {
   });
 
   it("returns valid=false when payment has expired", async () => {
-    vi.mocked(verifyTypedData).mockResolvedValue(true);
     const expiredPayload: PaymentPayload = {
       ...mockPayload,
       payload: {
@@ -82,7 +85,6 @@ describe("verifyPayment", () => {
   });
 
   it("returns valid=false when payment is not yet valid", async () => {
-    vi.mocked(verifyTypedData).mockResolvedValue(true);
     const futurePayload: PaymentPayload = {
       ...mockPayload,
       payload: {
@@ -106,5 +108,47 @@ describe("verifyPayment", () => {
     const result = await verifyPayment(wrongNetworkPayload, mockRequirement);
     expect(result.isValid).toBe(false);
     expect(result.error).toMatch(/network/i);
+  });
+
+  it("returns valid=false when payment recipient does not match requirement payTo", async () => {
+    const wrongRecipientPayload: PaymentPayload = {
+      ...mockPayload,
+      payload: {
+        ...mockPayload.payload,
+        authorization: {
+          ...mockPayload.payload.authorization,
+          to: "0x9999999999999999999999999999999999999999",
+        },
+      },
+    };
+    const result = await verifyPayment(wrongRecipientPayload, mockRequirement);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toMatch(/recipient/i);
+  });
+
+  it("returns valid=false when nonce has already been used (replay attack)", async () => {
+    const replayNonce = "0x" + "cc".repeat(32);
+    globalNonceStore.markUsed(replayNonce);
+
+    const replayPayload: PaymentPayload = {
+      ...mockPayload,
+      payload: {
+        ...mockPayload.payload,
+        authorization: {
+          ...mockPayload.payload.authorization,
+          nonce: replayNonce,
+        },
+      },
+    };
+    const result = await verifyPayment(replayPayload, mockRequirement);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toMatch(/nonce/i);
+  });
+
+  it("returns valid=false when recoverAddress throws (malformed signature)", async () => {
+    vi.mocked(recoverAddress).mockRejectedValue(new Error("invalid signature bytes"));
+    const result = await verifyPayment(mockPayload, mockRequirement);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toMatch(/malformed/i);
   });
 });

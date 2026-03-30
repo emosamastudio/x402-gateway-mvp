@@ -484,7 +484,7 @@ export function createDb(path: string) {
         INSERT INTO services (id, provider_id, name, gateway_path, backend_url, price_amount, price_currency, network, token_id, recipient, api_key, min_reputation, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(svc.id, svc.providerId ?? "", svc.name, svc.gatewayPath, svc.backendUrl, svc.priceAmount, svc.priceCurrency,
-              svc.network, svc.tokenId, svc.recipient ?? "", svc.apiKey, svc.minReputation, svc.createdAt);
+              svc.network, svc.tokenId ?? "", svc.recipient ?? "", svc.apiKey, svc.minReputation, svc.createdAt);
     },
 
     getServiceById(id: string): Service | undefined {
@@ -555,7 +555,7 @@ export function createDb(path: string) {
     findPendingRequest(serviceId: string, agentAddress: string): GatewayRequest | undefined {
       const cutoff = Date.now() - 5 * 60_000;
       const row = db.prepare(
-        `SELECT * FROM requests WHERE service_id = ? AND agent_address = ? AND gateway_status = 'payment_required' AND created_at > ? ORDER BY created_at DESC LIMIT 1`
+        `SELECT * FROM requests WHERE service_id = ? AND LOWER(agent_address) = LOWER(?) AND gateway_status = 'payment_required' AND created_at > ? ORDER BY created_at DESC LIMIT 1`
       ).get(serviceId, agentAddress, cutoff) as any;
       return row ? rowToRequest(row) : undefined;
     },

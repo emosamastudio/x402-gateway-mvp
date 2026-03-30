@@ -131,7 +131,7 @@ type FormData = {
 };
 
 const EMPTY_FORM: FormData = {
-  name: "", gatewayPath: "/", backendUrl: "", priceAmount: "0.001",
+  name: "", gatewayPath: "", backendUrl: "", priceAmount: "0.001",
   network: "", tokenId: "", recipient: "", apiKey: "", minReputation: 0,
 };
 

@@ -352,19 +352,43 @@ function CreateTokenForm({ chains, tokens: existingTokens, onCreated }: { chains
             padding: 14, marginBottom: 14,
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: TEXT_MUTED, textTransform: "uppercase", marginBottom: 10 }}>合约验证结果</div>
+            {/* Overall x402 compatibility banner */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+              padding: "7px 11px",
+              background: verifyResult.x402Compatible ? "#052e16" : "#3b0a0a",
+              border: `1px solid ${verifyResult.x402Compatible ? "#166534" : "#7f1d1d"}`,
+              borderRadius: 8,
+            }}>
+              <span style={{ fontSize: 15 }}>{verifyResult.x402Compatible ? "✅" : "❌"}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: verifyResult.x402Compatible ? SUCCESS : DANGER }}>
+                {verifyResult.x402Compatible ? "x402 兼容" : "不兼容 x402 支付协议"}
+              </span>
+              {!verifyResult.x402Compatible && (
+                <span style={{ fontSize: 11, color: TEXT_MUTED }}>— 需要 ERC-20、ERC-3009 及有效的 DOMAIN_SEPARATOR</span>
+              )}
+            </div>
+            {/* Three essential checks */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <VerifyBadge ok={verifyResult.erc20} label="ERC-20 标准" />
               <VerifyBadge ok={verifyResult.erc3009} label="ERC-3009 transferWithAuthorization" warn={verifyResult.erc3009Warning} />
-              <VerifyBadge ok={verifyResult.eip712Domain} label="EIP-5267 eip712Domain()"
-                status={verifyResult.eip712Domain ? (verifyResult.domainNameSource === "inferred" ? "warn" : "ok") : "fail"}
-                warn={verifyResult.eip712Domain
-                  ? (verifyResult.domainNameSource === "inferred" ? "已实现但当前调用失败（合约可能需要初始化），域信息为推断值" : undefined)
-                  : "未实现，域信息为推断值，请人工确认"} />
               <VerifyBadge ok={!!verifyResult.domainSeparator} label="DOMAIN_SEPARATOR()"
                 status={verifyResult.domainSeparator && verifyResult.domainSeparator !== "0x" + "0".repeat(64) ? "ok" : (verifyResult.domainSeparator ? "warn" : "fail")}
                 warn={verifyResult.domainSeparator && verifyResult.domainSeparator === "0x" + "0".repeat(64)
                   ? "值为全零，合约可能尚未初始化"
                   : verifyResult.domainSeparatorWarning} />
+            </div>
+            {/* EIP-5267 informational row — not a compatibility requirement */}
+            <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 6 }}>
+              <span style={{ fontSize: 12, marginTop: 1 }}>ℹ️</span>
+              <span style={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5 }}>
+                EIP-5267 eip712Domain(): {verifyResult.domainNameSource === "eip5267"
+                  ? <span style={{ color: SUCCESS }}>链上读取成功，域名/版本已验证</span>
+                  : verifyResult.eip712Domain
+                    ? <span style={{ color: TEXT_SECONDARY }}>已实现，但当前调用失败（代理合约初始化前的正常现象，不影响 x402 使用）</span>
+                    : <span style={{ color: TEXT_SECONDARY }}>未实现（不影响 x402 使用，域信息由 DOMAIN_SEPARATOR 提供）</span>
+                }
+              </span>
             </div>
             {verifyResult.domainSeparator && (
               <div style={{ marginTop: 8 }}>
@@ -409,9 +433,9 @@ function CreateTokenForm({ chains, tokens: existingTokens, onCreated }: { chains
             <div>
               <label style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, display: "block", marginBottom: 4 }}>
                 EIP-712 Domain Name
-                {verifyResult.eip712Domain
-                  ? <span style={{ fontSize: 10, color: SUCCESS }}> (链上读取)</span>
-                  : <span style={{ fontSize: 10, color: WARN }}> (推断值，请确认)</span>
+                {verifyResult.domainNameSource === "eip5267"
+                  ? <span style={{ fontSize: 10, color: SUCCESS }}> (链上验证)</span>
+                  : <span style={{ fontSize: 10, color: WARN }}> (从合约符号推断，可修改)</span>
                 }
               </label>
               <input style={inputStyle} value={overrides.domainName} onChange={(e) => setOverrides({ ...overrides, domainName: e.target.value })} disabled={step === "submitting"} />
@@ -419,9 +443,9 @@ function CreateTokenForm({ chains, tokens: existingTokens, onCreated }: { chains
             <div>
               <label style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, display: "block", marginBottom: 4 }}>
                 EIP-712 Domain Version
-                {verifyResult.eip712Domain
-                  ? <span style={{ fontSize: 10, color: SUCCESS }}> (链上读取)</span>
-                  : <span style={{ fontSize: 10, color: WARN }}> (推断值，请确认)</span>
+                {verifyResult.domainNameSource === "eip5267"
+                  ? <span style={{ fontSize: 10, color: SUCCESS }}> (链上验证)</span>
+                  : <span style={{ fontSize: 10, color: WARN }}> (从合约符号推断，可修改)</span>
                 }
               </label>
               <input style={inputStyle} value={overrides.domainVersion} onChange={(e) => setOverrides({ ...overrides, domainVersion: e.target.value })} disabled={step === "submitting"} />

@@ -29,5 +29,6 @@ export {
   stopHealthChecker,
   triggerHealthCheck,
   checkEndpointHealth,
+  configureHealthCallbacks,
 } from "./rpc-health.js";
 export type { RpcHealthConfig } from "./rpc-health.js";

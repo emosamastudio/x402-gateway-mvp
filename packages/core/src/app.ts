@@ -16,11 +16,17 @@ export function createCoreApp() {
   function resolveService(path: string): Service | undefined {
     const db = getDb();
     const services = db.listServices();
-    // Match by service.gatewayPath prefix
-    return services.find((s) => {
+    // Match by gatewayPath prefix; "/" is a catch-all.
+    // Among multiple matches, the most specific (longest) prefix wins.
+    const matches = services.filter((s) => {
       const gp = s.gatewayPath.replace(/\/$/, "");
-      return gp && (path === gp || path.startsWith(gp + "/"));
+      if (!gp) return true; // "/" stripped to "" → catch-all
+      return path === gp || path.startsWith(gp + "/");
     });
+    if (matches.length === 0) return undefined;
+    return matches.reduce((best, s) =>
+      s.gatewayPath.length > best.gatewayPath.length ? s : best
+    );
   }
 
   // Health check (unprotected)

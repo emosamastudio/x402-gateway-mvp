@@ -42,7 +42,29 @@ chainsRouter.put("/:id", async (c) => {
   const existing = db.getChain(id);
   if (!existing) return c.json({ error: "Chain not found" }, 404);
 
-  const ok = db.updateChain(id, body);
+  // Validate updatable fields
+  const allowed: Record<string, (v: unknown) => string | null> = {
+    name: (v) => (typeof v === "string" && v.length >= 1 && v.length <= 100) ? null : "name must be 1-100 characters",
+    chainId: (v) => (Number.isInteger(v) && (v as number) > 0) ? null : "chainId must be a positive integer",
+    rpcUrl: (v) => { try { const u = new URL(v as string); return ["http:", "https:"].includes(u.protocol) ? null : "rpcUrl must be http or https"; } catch { return "rpcUrl must be a valid URL"; } },
+    explorerUrl: (v) => (v === "" || (() => { try { new URL(v as string); return true; } catch { return false; } })()) ? null : "explorerUrl must be a valid URL or empty string",
+    isTestnet: (v) => typeof v === "boolean" ? null : "isTestnet must be a boolean",
+    nativeCurrency: (v) => (typeof v === "string" && v.length >= 1 && v.length <= 20) ? null : "nativeCurrency must be 1-20 characters",
+    erc8004Identity: (v) => typeof v === "string" ? null : "erc8004Identity must be a string",
+  };
+
+  const updates: Record<string, unknown> = {};
+  const errors: string[] = [];
+  for (const [key, validate] of Object.entries(allowed)) {
+    if (body[key] !== undefined) {
+      const err = validate(body[key]);
+      if (err) errors.push(err);
+      else updates[key] = body[key];
+    }
+  }
+  if (errors.length > 0) return c.json({ error: "Invalid input", details: errors }, 400);
+
+  const ok = db.updateChain(id, updates as any);
   if (!ok) return c.json({ error: "No fields updated" }, 400);
 
   // Reload into registry

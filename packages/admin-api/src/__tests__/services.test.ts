@@ -5,6 +5,13 @@ vi.mock("@x402-gateway-mvp/core/src/db.js", () => ({
     insertService: vi.fn(),
     listServices: vi.fn(() => []),
     getServiceById: vi.fn(),
+    getChain: vi.fn(() => ({ id: "optimism-sepolia", name: "Optimism Sepolia" })),
+    getToken: vi.fn((id: string) => ({
+      id,
+      symbol: "DMHKD",
+      chainSlug: "optimism-sepolia",
+    })),
+    getProvider: vi.fn(),
   })),
 }));
 
@@ -18,9 +25,11 @@ describe("POST /services", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: "Weather API",
+        gatewayPath: "/weather",
         backendUrl: "http://localhost:3001",
         priceAmount: "0.001",
         network: "optimism-sepolia",
+        tokenId: "dmhkd-optimism-sepolia",
         recipient: "0x1111111111111111111111111111111111111111",
         minReputation: 0,
       }),

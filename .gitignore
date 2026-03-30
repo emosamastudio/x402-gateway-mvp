@@ -5,3 +5,6 @@ dist
 *.zip
 
 .turbo
+
+# Browser automation artifacts
+.playwright-mcp/

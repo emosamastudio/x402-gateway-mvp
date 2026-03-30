@@ -104,9 +104,14 @@ servicesRouter.put("/:id", async (c) => {
     if (!tok) {
       errors.push(`tokenId "${body.tokenId}" not found`);
     } else {
-      updates.tokenId = body.tokenId;
-      // Auto-sync priceCurrency when token changes
-      updates.priceCurrency = tok.symbol;
+      const effectiveNetwork = updates.network ?? existing.network;
+      if (tok.chainSlug !== effectiveNetwork) {
+        errors.push(`Token "${body.tokenId}" is on chain "${tok.chainSlug}", not "${effectiveNetwork}"`);
+      } else {
+        updates.tokenId = body.tokenId;
+        // Auto-sync priceCurrency when token changes
+        updates.priceCurrency = tok.symbol;
+      }
     }
   }
   if (body.providerId !== undefined) {

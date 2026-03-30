@@ -113,6 +113,18 @@ rpcEndpointsRouter.put("/:id", async (c) => {
   const existing = db.getRpcEndpoint(id);
   if (!existing) return c.json({ error: "RPC endpoint not found" }, 404);
 
+  // Validate url if provided
+  if (body.url !== undefined) {
+    try {
+      const u = new URL(body.url);
+      if (!["http:", "https:"].includes(u.protocol)) {
+        return c.json({ error: "url must be an http or https URL" }, 400);
+      }
+    } catch {
+      return c.json({ error: "url must be a valid URL" }, 400);
+    }
+  }
+
   const ok = db.updateRpcEndpoint(id, body);
   if (!ok) return c.json({ error: "No fields updated" }, 400);
 

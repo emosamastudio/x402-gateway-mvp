@@ -264,3 +264,14 @@ export function stopHealthChecker(): void {
 export async function triggerHealthCheck(): Promise<void> {
   await runHealthChecks();
 }
+
+/**
+ * Configure persist/snapshot callbacks without starting the periodic interval.
+ * Use this in processes that only need manual health checks (e.g. admin-api),
+ * not the periodic background timer that core runs.
+ */
+export function configureHealthCallbacks(config: Pick<RpcHealthConfig, "persist" | "recordStats" | "snapshotStats">): void {
+  _persistFn = config.persist ?? null;
+  _statsFn = config.recordStats ?? null;
+  _snapshotFn = config.snapshotStats ?? null;
+}

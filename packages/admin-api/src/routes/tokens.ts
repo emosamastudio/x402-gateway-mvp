@@ -210,6 +210,7 @@ tokensRouter.post("/verify", async (c) => {
     result.domainVersion = domain[2];
     result.domainChainId = Number(domain[3]);
     result.domainVerifyingContract = domain[4];
+    result.domainNameSource = "eip5267"; // Data came from on-chain eip712Domain()
   } catch (eip5267Err: any) {
     const errMsg = (eip5267Err.shortMessage || eip5267Err.message || "").toLowerCase();
 
@@ -277,7 +278,11 @@ tokensRouter.post("/verify", async (c) => {
     }
   }
 
-  // 5. Suggest a token ID
+  // 5. Overall x402 compatibility: needs ERC-20, ERC-3009, and a non-zero DOMAIN_SEPARATOR
+  const ds = result.domainSeparator as string | null;
+  result.x402Compatible = !!(result.erc20 && result.erc3009 && ds && ds !== "0x" + "0".repeat(64));
+
+  // 6. Suggest a token ID
   result.suggestedId = `${(result.symbol as string).toLowerCase()}-${chainSlug}`;
 
   return c.json(result);

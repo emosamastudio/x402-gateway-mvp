@@ -14,16 +14,20 @@ const mockAddresses: Record<string, string | null> = {
   "sepolia": "0xdeadbeef",
 };
 
-vi.mock("../networks.js", () => ({
-  get ERC8004_IDENTITY_ADDRESSES() {
-    return mockAddresses;
-  },
-  DMHKD_ADDRESSES: {
-    "optimism-sepolia": "0x35348A0439Cd0198F10fbd6ACEc66D2506656DF6",
-    "sepolia": "0x1aA90392c804343C7854DD700f50a48961B71c53",
-  },
-  CHAINS: {},
-  CHAIN_IDS: { "optimism-sepolia": 11155420, "sepolia": 11155111 },
+// Mock registry so tests don't require DB-loaded chains
+vi.mock("../registry.js", () => ({
+  getChainConfig: vi.fn((slug: string) => ({
+    id: slug,
+    name: "Test Chain",
+    chainId: slug === "optimism-sepolia" ? 11155420 : 11155111,
+    rpcUrl: "http://localhost:8545",
+    explorerUrl: "",
+    isTestnet: true,
+    nativeCurrency: "ETH",
+    get erc8004Identity() { return mockAddresses[slug] ?? ""; },
+    createdAt: 0,
+  })),
+  getAllChains: vi.fn(() => []),
 }));
 
 import { getPublicClient } from "../client.js";
