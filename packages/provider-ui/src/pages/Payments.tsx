@@ -49,7 +49,7 @@ export function Payments() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["时间", "金额", "状态", "交易 Hash", "Agent 地址"].map(h => (
+                {["时间", "服务名", "金额", "状态", "交易 Hash", "Agent 地址"].map(h => (
                   <th key={h} style={{ textAlign: "left", color: "#6b7280", padding: "12px 16px", fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
@@ -60,6 +60,7 @@ export function Payments() {
                 return (
                   <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                     <td style={{ padding: "10px 16px", color: "#6b7280" }}>{new Date(p.createdAt).toLocaleString("zh-CN")}</td>
+                    <td style={{ padding: "10px 16px", color: "#e2e8f0" }}>{services.find(s => s.id === p.serviceId)?.name ?? "—"}</td>
                     <td style={{ padding: "10px 16px", color: "#10b981", fontWeight: 600 }}>{p.amount} {p.network.includes("sepolia") ? "DMHKD" : ""}</td>
                     <td style={{ padding: "10px 16px" }}>
                       <span style={{ color: p.status === "settled" ? "#10b981" : "#ef4444", fontSize: 12, fontFamily: "monospace" }}>

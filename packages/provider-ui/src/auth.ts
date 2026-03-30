@@ -5,8 +5,23 @@ import type { ServiceProvider } from "@x402-gateway-mvp/shared";
 const TOKEN_KEY = "x402_provider_token";
 const PROVIDER_KEY = "x402_provider_info";
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+  if (isTokenExpired(token)) {
+    clearAuth();
+    return null;
+  }
+  return token;
 }
 
 export function storeAuth(token: string, provider: ServiceProvider): void {

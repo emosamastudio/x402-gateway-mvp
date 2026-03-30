@@ -1,6 +1,6 @@
 // packages/provider-ui/src/api.ts
 import type { Service, Payment, GatewayRequest, ServiceProvider, ChainConfig, TokenConfig } from "@x402-gateway-mvp/shared";
-import { getStoredToken } from "./auth.js";
+import { getStoredToken, clearAuth } from "./auth.js";
 
 const BASE = "/provider";
 
@@ -17,14 +17,19 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   let body: unknown;
   try { body = JSON.parse(text); } catch { body = { error: text }; }
+  if (res.status === 401) {
+    clearAuth();
+    window.location.href = "/login";
+    throw new Error("Session expired");
+  }
   if (!res.ok) throw new Error((body as { error?: string })?.error ?? `HTTP ${res.status}`);
   return body as T;
 }
 
 // Auth
 export async function fetchNonce(address: string): Promise<string> {
-  const data = await req<{ message: string }>(`/auth/nonce?address=${encodeURIComponent(address)}`);
-  return data.message;
+  const data = await req<{ nonce: string }>(`/auth/nonce?address=${encodeURIComponent(address)}`);
+  return data.nonce;
 }
 
 export interface VerifyResult {

@@ -55,7 +55,7 @@ export function Requests() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["时间", "路径", "Agent 地址", "状态", "HTTP"].map(h => (
+                {["时间", "服务名", "路径", "Agent 地址", "状态", "HTTP"].map(h => (
                   <th key={h} style={{ textAlign: "left", color: "#6b7280", padding: "12px 16px", fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
@@ -64,6 +64,7 @@ export function Requests() {
               {requests.map(r => (
                 <tr key={r.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                   <td style={{ padding: "10px 16px", color: "#6b7280" }}>{new Date(r.createdAt).toLocaleString("zh-CN")}</td>
+                  <td style={{ padding: "10px 16px", color: "#e2e8f0" }}>{services.find(s => s.id === r.serviceId)?.name ?? "—"}</td>
                   <td style={{ padding: "10px 16px", color: "#3b82f6", fontFamily: "monospace" }}>{r.method} {r.path}</td>
                   <td style={{ padding: "10px 16px", color: "#9ca3af", fontFamily: "monospace", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
                     {r.agentAddress || "—"}

@@ -26,9 +26,8 @@ describe("GET /provider/auth/nonce", () => {
     const res = await app.request("/provider/auth/nonce?address=0xabc123");
     expect(res.status).toBe(200);
     const body = await res.json() as any;
-    expect(typeof body.message).toBe("string");
-    expect(body.message).toContain("Sign in to x402 Gateway");
-    expect(body.message).toContain("0xabc123");
+    expect(typeof body.nonce).toBe("string");
+    expect(body.nonce).toContain("Sign in to x402 Gateway");
   });
 
   it("returns 400 when address is missing", async () => {

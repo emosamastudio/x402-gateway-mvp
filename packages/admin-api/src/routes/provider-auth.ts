@@ -13,7 +13,7 @@ providerAuthRouter.get("/nonce", (c) => {
   if (!address) return c.json({ error: "address query param required" }, 400);
   generateNonce(address);
   const message = getNonceMessage(address)!;
-  return c.json({ message });
+  return c.json({ nonce: message });
 });
 
 // POST /provider/auth/verify  { walletAddress, signature }

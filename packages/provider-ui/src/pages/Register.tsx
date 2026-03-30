@@ -1,8 +1,9 @@
 // packages/provider-ui/src/pages/Register.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { updateMe } from "../api.js";
 import { useAuth } from "../auth.js";
+import { getStoredToken } from "../auth.js";
 
 export function Register() {
   const { provider, updateProvider } = useAuth();
@@ -12,6 +13,10 @@ export function Register() {
   const [website, setWebsite] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!getStoredToken()) navigate("/login");
+  }, [navigate]);
 
   const CARD: React.CSSProperties = {
     background: "#111827", border: "1px solid #1e2d45", borderRadius: 16,

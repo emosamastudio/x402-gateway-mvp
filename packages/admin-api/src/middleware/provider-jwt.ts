@@ -35,7 +35,7 @@ export function getNonceMessage(address: string): string | null {
     nonceStore.delete(address.toLowerCase());
     return null;
   }
-  return `Sign in to x402 Gateway\nAddress: ${address}\nNonce: ${entry.nonce}`;
+  return `Sign in to x402 Gateway\nNonce: ${entry.nonce}\nExpires: ${new Date(entry.expiresAt).toISOString()}`;
 }
 
 export function consumeNonce(address: string): boolean {

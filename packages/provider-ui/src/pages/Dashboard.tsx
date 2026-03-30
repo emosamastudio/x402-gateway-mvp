@@ -4,9 +4,9 @@ import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { getSummaryStats, getTimeseries, listMyServices } from "../api.js";
+import { getSummaryStats, getTimeseries, listMyServices, listRequests, listPayments } from "../api.js";
 import type { SummaryStats, TimeseriesDay } from "../api.js";
-import type { Service } from "@x402-gateway-mvp/shared";
+import type { Service, GatewayRequest, Payment } from "@x402-gateway-mvp/shared";
 
 const CARD_BG = "#111827";
 const BORDER = "#1e2d45";
@@ -29,11 +29,15 @@ export function Dashboard() {
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [series, setSeries] = useState<TimeseriesDay[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [requests, setRequests] = useState<GatewayRequest[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getSummaryStats(), getTimeseries(7), listMyServices()])
-      .then(([s, ts, svcs]) => { setStats(s); setSeries(ts); setServices(svcs); })
+    Promise.all([getSummaryStats(), getTimeseries(7), listMyServices(), listRequests(), listPayments()])
+      .then(([s, ts, svcs, reqs, pmts]) => {
+        setStats(s); setSeries(ts); setServices(svcs); setRequests(reqs); setPayments(pmts);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -96,21 +100,31 @@ export function Dashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["名称", "路径", "网络", "价格", "创建时间"].map(h => (
+                {["服务名", "路径", "网络", "价格", "请求数", "收入", "最后调用"].map(h => (
                   <th key={h} style={{ textAlign: "left", color: "#6b7280", padding: "8px 12px", fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {services.map(s => (
-                <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{s.name}</td>
-                  <td style={{ padding: "10px 12px", color: "#3b82f6", fontFamily: "monospace" }}>{s.gatewayPath}</td>
-                  <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.network}</td>
-                  <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.priceAmount} {s.priceCurrency}</td>
-                  <td style={{ padding: "10px 12px", color: "#6b7280" }}>{new Date(s.createdAt).toLocaleDateString("zh-CN")}</td>
-                </tr>
-              ))}
+              {services.map(s => {
+                const svcReqs = requests.filter(r => r.serviceId === s.id);
+                const svcPmts = payments.filter(p => p.serviceId === s.id && p.status === "settled");
+                const revenue = svcPmts.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                const lastReq = svcReqs.reduce<number | null>((mx, r) => mx === null || r.createdAt > mx ? r.createdAt : mx, null);
+                return (
+                  <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{s.name}</td>
+                    <td style={{ padding: "10px 12px", color: "#3b82f6", fontFamily: "monospace" }}>{s.gatewayPath}</td>
+                    <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.network}</td>
+                    <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.priceAmount} {s.priceCurrency}</td>
+                    <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{svcReqs.length}</td>
+                    <td style={{ padding: "10px 12px", color: "#10b981" }}>{revenue.toFixed(4)}</td>
+                    <td style={{ padding: "10px 12px", color: "#6b7280" }}>
+                      {lastReq ? new Date(lastReq).toLocaleString("zh-CN") : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
