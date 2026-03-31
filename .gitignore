@@ -8,3 +8,4 @@ dist
 
 # Browser automation artifacts
 .playwright-mcp/
+.worktrees/
