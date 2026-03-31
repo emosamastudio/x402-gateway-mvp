@@ -145,7 +145,19 @@ export function Login() {
     setStatus("connecting");
     setError("");
     try {
-      const accounts: string[] = await w.provider.request({ method: "eth_requestAccounts" });
+      let accounts: string[];
+      try {
+        // wallet_requestPermissions forces MetaMask to show the account picker
+        await w.provider.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
+        accounts = await w.provider.request({ method: "eth_accounts" });
+      } catch {
+        // Fallback for wallets that don't support wallet_requestPermissions
+        accounts = await w.provider.request({ method: "eth_requestAccounts" });
+      }
+      if (!accounts[0]) throw new Error("未选择账户");
       setAddress(accounts[0]);
       setActiveProvider(w.provider);
       setStatus("idle");

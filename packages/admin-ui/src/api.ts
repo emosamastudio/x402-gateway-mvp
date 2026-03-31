@@ -1,4 +1,4 @@
-import type { Service, Payment, AgentInfo, GatewayRequest, ChainConfig, TokenConfig, RpcEndpoint, ServiceProvider } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme, Payment, AgentInfo, GatewayRequest, ChainConfig, TokenConfig, RpcEndpoint, ServiceProvider } from "@x402-gateway-mvp/shared";
 
 const BASE = "/api";
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_API_KEY ?? "change-me-in-production";
@@ -316,6 +316,37 @@ export async function updateService(id: string, data: Partial<{
 
 export async function deleteService(id: string): Promise<void> {
   const res = await fetch(`${BASE}/services/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await assertOk(res);
+}
+
+export async function listServiceSchemes(serviceId: string): Promise<ServicePaymentScheme[]> {
+  const res = await fetch(`${BASE}/services/${serviceId}/schemes`, { headers: authHeaders() });
+  await assertOk(res);
+  return safeJson(res);
+}
+export async function createServiceScheme(serviceId: string, data: { network: string; tokenId: string; priceAmount: string; recipient?: string }): Promise<ServicePaymentScheme> {
+  const res = await fetch(`${BASE}/services/${serviceId}/schemes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await assertOk(res);
+  return safeJson(res);
+}
+export async function updateServiceScheme(serviceId: string, schemeId: string, data: { priceAmount?: string; recipient?: string }): Promise<ServicePaymentScheme> {
+  const res = await fetch(`${BASE}/services/${serviceId}/schemes/${schemeId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await assertOk(res);
+  return safeJson(res);
+}
+export async function deleteServiceScheme(serviceId: string, schemeId: string): Promise<void> {
+  const res = await fetch(`${BASE}/services/${serviceId}/schemes/${schemeId}`, {
     method: "DELETE",
     headers: authHeaders(),
   });

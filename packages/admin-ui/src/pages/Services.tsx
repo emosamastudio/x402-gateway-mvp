@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { listServices, createService, updateService, deleteService, listChains, listTokens, listProviders } from "../api.js";
-import type { Service, ChainConfig, TokenConfig, ServiceProvider } from "@x402-gateway-mvp/shared";
+import {
+  listServices, createService, updateService, deleteService,
+  listServiceSchemes, createServiceScheme, updateServiceScheme, deleteServiceScheme,
+  listChains, listTokens, listProviders,
+} from "../api.js";
+import type { Service, ServicePaymentScheme, ChainConfig, TokenConfig, ServiceProvider } from "@x402-gateway-mvp/shared";
+import { slugify } from "@x402-gateway-mvp/shared";
 
-/* ────────────────────── Styles ────────────────────── */
-
+/* ── Styles ──────────────────────────────────────────────────── */
 const CARD_BG = "#111827";
 const CARD_BORDER = "#1e2d45";
 const ACCENT = "#3b82f6";
@@ -18,35 +22,28 @@ const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px", background: INPUT_BG,
   border: `1px solid ${CARD_BORDER}`, borderRadius: 8, color: TEXT_PRIMARY,
   fontSize: 14, boxSizing: "border-box", outline: "none",
-  transition: "border-color 0.2s",
 };
-
 const labelStyle: React.CSSProperties = {
   fontSize: 12, fontWeight: 600, color: "#60a5fa", display: "block", marginBottom: 6,
 };
-
 const btnBase: React.CSSProperties = {
   border: "none", borderRadius: 8, cursor: "pointer",
   fontSize: 13, fontWeight: 600, padding: "8px 18px",
-  transition: "background 0.2s, transform 0.1s, box-shadow 0.2s",
   display: "inline-flex", alignItems: "center", gap: 6,
 };
 
-/* ────────────────────── Helpers ────────────────────── */
-
+/* ── Helpers ──────────────────────────────────────────────────── */
 function CopyBtn({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      type="button"
+    <button type="button"
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
       style={{
         ...btnBase, padding: "3px 10px", fontSize: 11, fontWeight: 500,
         background: copied ? "#065f46" : "transparent",
         border: `1px solid ${copied ? "#10b981" : CARD_BORDER}`,
         color: copied ? "#34d399" : "#60a5fa",
-      }}
-    >{copied ? "✓ 已复制" : (label ?? "复制")}</button>
+      }}>{copied ? "✓ 已复制" : (label ?? "复制")}</button>
   );
 }
 
@@ -54,215 +51,87 @@ function Badge({ text, color = "#60a5fa", bg = "#1e3a5f" }: { text: string; colo
   return (
     <span style={{
       fontSize: 11, fontWeight: 700, color, background: bg,
-      padding: "3px 10px", borderRadius: 20, letterSpacing: 0.3,
-      textTransform: "uppercase",
+      padding: "3px 10px", borderRadius: 20, letterSpacing: 0.3, textTransform: "uppercase",
     }}>{text}</span>
   );
 }
 
-function networkColor(network: string) {
-  if (network === "optimism-sepolia") return { color: "#f87171", bg: "#3b1111" };
-  if (network === "sepolia") return { color: "#a78bfa", bg: "#2e1065" };
-  return { color: "#60a5fa", bg: "#1e3a5f" };
-}
-
 function formatDate(ts: number) {
   return new Date(ts).toLocaleString("zh-CN", {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
   });
 }
 
-/* ────────────────────── Empty State ────────────────────── */
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "80px 24px", background: CARD_BG, border: `2px dashed ${CARD_BORDER}`,
-      borderRadius: 16, textAlign: "center",
-    }}>
-      <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>🔌</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 8 }}>还没有注册任何服务</div>
-      <div style={{ fontSize: 14, color: TEXT_MUTED, marginBottom: 24, maxWidth: 360 }}>
-        注册你的第一个 API 服务，开始通过 x402 网关接收加密支付
-      </div>
-      <button
-        type="button"
-        onClick={onAdd}
-        style={{ ...btnBase, padding: "12px 28px", fontSize: 15, background: ACCENT, color: "#fff" }}
-      >+ 注册服务</button>
-    </div>
-  );
-}
-
-/* ────────────────────── Confirm Dialog ────────────────────── */
+/* ── Confirm Dialog ───────────────────────────────────────────── */
 function ConfirmDialog({ title, message, onConfirm, onCancel }: {
   title: string; message: string; onConfirm: () => void; onCancel: () => void;
 }) {
   return (
-    <div style={{
-      position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(0,0,0,0.6)", zIndex: 9999,
-    }} onClick={onCancel}>
-      <div style={{
-        background: "#1a1f2e", border: `1px solid ${CARD_BORDER}`, borderRadius: 16,
-        padding: 32, maxWidth: 420, width: "90%",
-        boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
-      }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", zIndex: 9999 }} onClick={onCancel}>
+      <div style={{ background: "#1a1f2e", border: `1px solid ${CARD_BORDER}`, borderRadius: 16, padding: 32, maxWidth: 420, width: "90%" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 17, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 12 }}>{title}</div>
         <div style={{ fontSize: 14, color: TEXT_SECONDARY, marginBottom: 24, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{message}</div>
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onCancel} style={{
-            ...btnBase, background: "transparent", border: `1px solid ${CARD_BORDER}`, color: TEXT_SECONDARY,
-          }}>取消</button>
-          <button type="button" onClick={onConfirm} style={{
-            ...btnBase, background: DANGER, color: "#fff",
-          }}>确认删除</button>
+          <button type="button" onClick={onCancel} style={{ ...btnBase, background: "transparent", border: `1px solid ${CARD_BORDER}`, color: TEXT_SECONDARY }}>取消</button>
+          <button type="button" onClick={onConfirm} style={{ ...btnBase, background: DANGER, color: "#fff" }}>确认删除</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ────────────────────── Service Form (Create / Edit) ────────────────────── */
-type FormData = {
-  name: string; providerId?: string; gatewayPath: string; backendUrl: string; priceAmount: string;
-  network: string; tokenId: string; recipient?: string; apiKey: string; minReputation: number;
+/* ── Service Form ─────────────────────────────────────────────── */
+type ServiceFormData = {
+  name: string; backendUrl: string; apiKey: string; minReputation: number; providerId: string;
 };
+const EMPTY_SERVICE_FORM: ServiceFormData = { name: "", backendUrl: "", apiKey: "", minReputation: 0, providerId: "" };
 
-const EMPTY_FORM: FormData = {
-  name: "", gatewayPath: "", backendUrl: "", priceAmount: "0.001",
-  network: "", tokenId: "", recipient: "", apiKey: "", minReputation: 0,
-};
-
-function ServiceFormModal({ initial, isEdit, onSubmit, onCancel, loading, error, chains, tokens, providers }: {
-  initial: FormData; isEdit: boolean;
-  onSubmit: (data: FormData) => void;
-  onCancel: () => void;
-  loading: boolean; error: string | null;
-  chains: ChainConfig[]; tokens: TokenConfig[];
-  providers: ServiceProvider[];
+function ServiceFormModal({ initial, isEdit, onSubmit, onCancel, loading, error, providers }: {
+  initial: ServiceFormData; isEdit: boolean;
+  onSubmit: (data: ServiceFormData) => void; onCancel: () => void;
+  loading: boolean; error: string | null; providers: ServiceProvider[];
 }) {
-  const [form, setForm] = useState<FormData>(initial);
-  const set = (key: keyof FormData, val: any) => setForm((f) => ({ ...f, [key]: val }));
-
-  const filteredTokens = tokens.filter((t) => t.isActive && t.chainSlug === form.network);
-  const selectedToken = tokens.find((t) => t.id === form.tokenId);
-
-  const handleNetworkChange = (network: string) => {
-    const firstToken = tokens.filter((t) => t.isActive && t.chainSlug === network)[0];
-    setForm((f) => ({ ...f, network, tokenId: firstToken?.id || "" }));
-  };
-
-  const handleProviderChange = (providerId: string) => {
-    const prov = providers.find((p) => p.id === providerId);
-    setForm((f) => ({ ...f, providerId, recipient: prov && (!f.recipient || f.recipient === "") ? prov.walletAddress : f.recipient }));
-  };
-
+  const [form, setForm] = useState<ServiceFormData>(initial);
+  const set = (key: keyof ServiceFormData, val: any) => setForm(f => ({ ...f, [key]: val }));
   return (
-    <div style={{
-      position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(0,0,0,0.6)", zIndex: 9999,
-    }} onClick={onCancel}>
-      <div style={{
-        background: "#1a1f2e", border: `1px solid ${CARD_BORDER}`, borderRadius: 16,
-        padding: 32, maxWidth: 520, width: "90%",
-        boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
-        maxHeight: "90vh", overflowY: "auto",
-      }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", zIndex: 9999 }} onClick={onCancel}>
+      <div style={{ background: "#1a1f2e", border: `1px solid ${CARD_BORDER}`, borderRadius: 16, padding: 32, maxWidth: 480, width: "90%", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 18, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 24 }}>
           {isEdit ? "✏️ 编辑服务" : "➕ 注册新服务"}
         </div>
-        {error && (
-          <div style={{
-            padding: "10px 14px", background: "#3b1111", border: "1px solid #7f1d1d",
-            borderRadius: 8, color: "#fca5a5", fontSize: 13, marginBottom: 16,
-          }}>{error}</div>
-        )}
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}>
+        {error && <div style={{ padding: "10px 14px", background: "#3b1111", border: "1px solid #7f1d1d", borderRadius: 8, color: "#fca5a5", fontSize: 13, marginBottom: 16 }}>{error}</div>}
+        <form onSubmit={e => { e.preventDefault(); onSubmit(form); }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={labelStyle}>服务名称</label>
-              <input style={inputStyle} placeholder="My API Service" value={form.name}
-                onChange={(e) => set("name", e.target.value)} required />
-            </div>
-            <div>
-              <label style={labelStyle}>网关路径</label>
-              <input style={inputStyle} placeholder="/echo 或 /api/weather" value={form.gatewayPath}
-                onChange={(e) => set("gatewayPath", e.target.value)} required />
-              <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 4 }}>
-                用户通过此路径访问网关，如 <code style={{ color: "#fbbf24" }}>http://localhost:8402/echo</code>
-              </div>
+              <input style={inputStyle} placeholder="My API Service" value={form.name} onChange={e => set("name", e.target.value)} required />
             </div>
             <div>
               <label style={labelStyle}>后端 URL</label>
-              <input style={inputStyle} placeholder="http://localhost:3001/api" value={form.backendUrl}
-                onChange={(e) => set("backendUrl", e.target.value)} required />
-              <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 4 }}>
-                请求通过验证后将被转发到此地址
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={labelStyle}>单次请求价格 ({selectedToken?.symbol || "token"})</label>
-                <input style={inputStyle} placeholder="0.001" value={form.priceAmount}
-                  onChange={(e) => set("priceAmount", e.target.value)} required />
-              </div>
-              <div>
-                <label style={labelStyle}>链</label>
-                <select style={{ ...inputStyle, cursor: "pointer" }} value={form.network}
-                  onChange={(e) => handleNetworkChange(e.target.value)} required>
-                  <option value="">选择链...</option>
-                  {chains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={labelStyle}>支付代币</label>
-              <select style={{ ...inputStyle, cursor: "pointer" }} value={form.tokenId}
-                onChange={(e) => set("tokenId", e.target.value)} required disabled={!form.network}>
-                <option value="">选择代币...</option>
-                {filteredTokens.map((t) => <option key={t.id} value={t.id}>{t.symbol} — {t.name || t.id}</option>)}
-              </select>
+              <input style={inputStyle} placeholder="http://localhost:3001/api" value={form.backendUrl} onChange={e => set("backendUrl", e.target.value)} required />
             </div>
             <div>
               <label style={labelStyle}>服务商 (可选)</label>
-              <select style={{ ...inputStyle, cursor: "pointer" }} value={form.providerId || ""}
-                onChange={(e) => handleProviderChange(e.target.value)}>
+              <select style={{ ...inputStyle, cursor: "pointer" }} value={form.providerId} onChange={e => set("providerId", e.target.value)}>
                 <option value="">无</option>
-                {providers.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.walletAddress.slice(0, 6)}...{p.walletAddress.slice(-4)}</option>)}
+                {providers.map(p => <option key={p.id} value={p.id}>{p.name} — {p.walletAddress.slice(0, 6)}...{p.walletAddress.slice(-4)}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>收款地址</label>
-              <input style={inputStyle} placeholder="0x..." value={form.recipient || ""}
-                onChange={(e) => set("recipient", e.target.value)} />
-              <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 4 }}>
-                选择服务商后可自动填充，也可手动覆盖
-              </div>
-            </div>
-            <div>
               <label style={labelStyle}>后端 API Key <span style={{ color: TEXT_MUTED, fontWeight: 400 }}>(可选)</span></label>
-              <input style={inputStyle} placeholder="留空则不发送 API Key" value={form.apiKey}
-                onChange={(e) => set("apiKey", e.target.value)}
-                type="password" autoComplete="off" />
-              <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 4 }}>
-                如果后端需要认证，填写 API Key，网关将在转发时以 <code style={{ color: "#94a3b8" }}>Authorization: Bearer</code> 方式发送
-              </div>
+              <input style={inputStyle} placeholder="留空则不发送" value={form.apiKey} onChange={e => set("apiKey", e.target.value)} type="password" autoComplete="off" />
             </div>
             <div>
               <label style={labelStyle}>最低信誉分 (0 = 不限制)</label>
-              <input style={inputStyle} type="number" min={0} value={form.minReputation}
-                onChange={(e) => set("minReputation", Number(e.target.value))} />
+              <input style={inputStyle} type="number" min={0} value={form.minReputation} onChange={e => set("minReputation", Number(e.target.value))} />
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 28 }}>
-            <button type="button" onClick={onCancel} style={{
-              ...btnBase, background: "transparent", border: `1px solid ${CARD_BORDER}`, color: TEXT_SECONDARY,
-            }}>取消</button>
-            <button type="submit" disabled={loading} style={{
-              ...btnBase, background: ACCENT, color: "#fff", opacity: loading ? 0.6 : 1,
-            }}>
+          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 16, padding: "10px 14px", background: "#0c1018", borderRadius: 8, lineHeight: 1.6 }}>
+            创建服务后，在展开面板中添加支付方案，网关路径将自动生成。
+          </div>
+          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
+            <button type="button" onClick={onCancel} style={{ ...btnBase, background: "transparent", border: `1px solid ${CARD_BORDER}`, color: TEXT_SECONDARY }}>取消</button>
+            <button type="submit" disabled={loading} style={{ ...btnBase, background: ACCENT, color: "#fff", opacity: loading ? 0.6 : 1 }}>
               {loading ? "处理中..." : isEdit ? "保存更改" : "注册服务"}
             </button>
           </div>
@@ -272,98 +141,251 @@ function ServiceFormModal({ initial, isEdit, onSubmit, onCancel, loading, error,
   );
 }
 
-/* ────────────────────── Service Card ────────────────────── */
-function ServiceCard({ service, onEdit, onDelete, providers }: {
-  service: Service; onEdit: () => void; onDelete: () => void; providers: ServiceProvider[];
+/* ── Scheme Inline Form ───────────────────────────────────────── */
+interface SchemeFormData { network: string; tokenId: string; priceAmount: string; recipient: string; }
+const EMPTY_SCHEME: SchemeFormData = { network: "", tokenId: "", priceAmount: "0.001", recipient: "" };
+
+function SchemeInlineForm({ form, setForm, chains, filteredTokens, isEdit, saving, error, onSubmit, onCancel }: {
+  form: SchemeFormData;
+  setForm: React.Dispatch<React.SetStateAction<SchemeFormData>>;
+  chains: ChainConfig[]; filteredTokens: TokenConfig[];
+  isEdit: boolean; saving: boolean; error: string;
+  onSubmit: () => void; onCancel: () => void;
+}) {
+  const SI: React.CSSProperties = { padding: "7px 10px", background: "#111827", border: `1px solid ${CARD_BORDER}`, borderRadius: 6, color: TEXT_PRIMARY, fontSize: 13, outline: "none" };
+  return (
+    <div style={{ background: "#0f1929", border: "1px solid #1e3a5f", borderRadius: 8, padding: 16, marginTop: 8 }}>
+      <p style={{ color: "#60a5fa", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>{isEdit ? "编辑方案" : "添加支付方案"}</p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        {!isEdit && (
+          <div>
+            <label style={{ color: "#6b7280", fontSize: 11, display: "block", marginBottom: 4 }}>网络 *</label>
+            <select style={{ ...SI, minWidth: 140, cursor: "pointer" }} value={form.network}
+              onChange={e => setForm(f => ({ ...f, network: e.target.value, tokenId: "" }))}>
+              <option value="">-- 选择网络 --</option>
+              {chains.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+        {!isEdit && (
+          <div>
+            <label style={{ color: "#6b7280", fontSize: 11, display: "block", marginBottom: 4 }}>Token *</label>
+            <select style={{ ...SI, minWidth: 140, cursor: "pointer" }} value={form.tokenId}
+              onChange={e => setForm(f => ({ ...f, tokenId: e.target.value }))} disabled={!form.network}>
+              <option value="">-- 选择 Token --</option>
+              {filteredTokens.map(t => <option key={t.id} value={t.id}>{t.symbol}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          <label style={{ color: "#6b7280", fontSize: 11, display: "block", marginBottom: 4 }}>价格 *</label>
+          <input style={{ ...SI, width: 100 }} type="number" step="0.001" min="0" value={form.priceAmount}
+            onChange={e => setForm(f => ({ ...f, priceAmount: e.target.value }))} />
+        </div>
+        <div>
+          <label style={{ color: "#6b7280", fontSize: 11, display: "block", marginBottom: 4 }}>收款地址 (可选)</label>
+          <input style={{ ...SI, width: 200 }} value={form.recipient}
+            onChange={e => setForm(f => ({ ...f, recipient: e.target.value }))} placeholder="0x… 留空使用服务商钱包" />
+        </div>
+        <button onClick={onSubmit} disabled={saving}
+          style={{ background: "#166534", color: "#4ade80", border: "1px solid #166534", borderRadius: 6, padding: "7px 16px", cursor: "pointer", fontSize: 13 }}>
+          {saving ? "保存中..." : "保存"}
+        </button>
+        <button onClick={onCancel}
+          style={{ background: "transparent", color: "#9ca3af", border: `1px solid ${CARD_BORDER}`, borderRadius: 6, padding: "7px 12px", cursor: "pointer", fontSize: 13 }}>
+          取消
+        </button>
+      </div>
+      {error && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{error}</p>}
+    </div>
+  );
+}
+
+/* ── Service Card ─────────────────────────────────────────────── */
+function ServiceCard({ service, providers, chains, tokens, onEdit, onDelete }: {
+  service: Service; providers: ServiceProvider[];
+  chains: ChainConfig[]; tokens: TokenConfig[];
+  onEdit: () => void; onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const gatewayPath = service.gatewayPath || "/";
-  const gatewayUrl = `http://localhost:8402${gatewayPath}`;
-  const nc = networkColor(service.network);
+  const [schemes, setSchemes] = useState<ServicePaymentScheme[] | null>(null);
+  const [addingScheme, setAddingScheme] = useState(false);
+  const [editingScheme, setEditingScheme] = useState<ServicePaymentScheme | null>(null);
+  const [schemeForm, setSchemeForm] = useState<SchemeFormData>(EMPTY_SCHEME);
+  const [schemeSaving, setSchemeSaving] = useState(false);
+  const [schemeError, setSchemeError] = useState("");
+
+  const prov = providers.find(p => p.id === service.providerId);
+
+  const loadSchemes = async () => {
+    const s = await listServiceSchemes(service.id);
+    setSchemes(s);
+  };
+
+  const handleExpand = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && schemes === null) await loadSchemes();
+  };
+
+  const filteredTokens = (network: string) => tokens.filter(t => t.isActive && t.chainSlug === network);
+
+  const computePath = (sch: ServicePaymentScheme) => {
+    const pSlug = slugify(prov?.name ?? service.providerId ?? "unknown");
+    const sSlug = slugify(service.name);
+    const tok = tokens.find(t => t.id === sch.tokenId);
+    const tSlug = slugify(tok?.symbol ?? sch.tokenId);
+    return `/${pSlug}/${sSlug}/${sch.network}/${tSlug}`;
+  };
+
+  const openAdd = () => { setAddingScheme(true); setEditingScheme(null); setSchemeForm(EMPTY_SCHEME); setSchemeError(""); };
+  const openEdit = (sch: ServicePaymentScheme) => {
+    setEditingScheme(sch); setAddingScheme(false);
+    setSchemeForm({ network: sch.network, tokenId: sch.tokenId, priceAmount: sch.priceAmount, recipient: sch.recipient });
+    setSchemeError("");
+  };
+  const cancelScheme = () => { setAddingScheme(false); setEditingScheme(null); setSchemeForm(EMPTY_SCHEME); setSchemeError(""); };
+
+  const handleSchemeSubmit = async () => {
+    if (!schemeForm.priceAmount) { setSchemeError("请填写价格"); return; }
+    if (!editingScheme && (!schemeForm.network || !schemeForm.tokenId)) { setSchemeError("请选择网络和 Token"); return; }
+    setSchemeSaving(true); setSchemeError("");
+    try {
+      if (editingScheme) {
+        await updateServiceScheme(service.id, editingScheme.id, { priceAmount: schemeForm.priceAmount, recipient: schemeForm.recipient || undefined });
+      } else {
+        await createServiceScheme(service.id, { network: schemeForm.network, tokenId: schemeForm.tokenId, priceAmount: schemeForm.priceAmount, recipient: schemeForm.recipient || undefined });
+      }
+      cancelScheme();
+      await loadSchemes();
+    } catch (e: any) {
+      setSchemeError(e.message ?? "操作失败");
+    } finally { setSchemeSaving(false); }
+  };
+
+  const handleDeleteScheme = async (sch: ServicePaymentScheme) => {
+    if (!confirm(`确认删除方案 ${sch.network} / ${sch.priceCurrency}？`)) return;
+    await deleteServiceScheme(service.id, sch.id);
+    await loadSchemes();
+  };
 
   return (
-    <div style={{
-      background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 14,
-      overflow: "hidden", transition: "border-color 0.2s, box-shadow 0.2s",
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#2d4a6f"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = CARD_BORDER; e.currentTarget.style.boxShadow = "none"; }}
-    >
+    <div style={{ background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 14, overflow: "hidden" }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#2d4a6f"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = CARD_BORDER; }}>
+
       {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 20px", borderBottom: `1px solid ${CARD_BORDER}`,
-        cursor: "pointer",
-      }} onClick={() => setExpanded((v) => !v)}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", cursor: "pointer" }} onClick={handleExpand}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #8b5cf6 100%)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, fontWeight: 800, color: "#fff", flexShrink: 0,
-          }}>{service.name.charAt(0).toUpperCase()}</div>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${ACCENT} 0%, #8b5cf6 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
+            {service.name.charAt(0).toUpperCase()}
+          </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_PRIMARY, wordBreak: "break-word" }}>{service.name}</div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-              <div style={{ fontSize: 12, color: TEXT_MUTED }}>{service.priceAmount} DMHKD / request</div>
-              {service.providerId ? (() => {
-                const prov = providers.find((p) => p.id === service.providerId);
-                return prov ? <Badge text={prov.name} color="#94a3b8" bg="#0b1220" /> : <Badge text={service.providerId} color="#94a3b8" bg="#0b1220" />;
-              })() : null}
+            <div style={{ fontSize: 15, fontWeight: 700, color: TEXT_PRIMARY }}>{service.name}</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+              {prov && <Badge text={prov.name} color="#94a3b8" bg="#0b1220" />}
+              {schemes !== null && <Badge text={`${schemes.length} 个方案`} color="#4ade80" bg="#1a2d1a" />}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <Badge text={service.network} color={nc.color} bg={nc.bg} />
-          <span style={{ fontSize: 16, color: TEXT_MUTED, transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "none" }}>▾</span>
+          <button type="button" onClick={e => { e.stopPropagation(); onEdit(); }}
+            style={{ ...btnBase, padding: "6px 14px", background: "transparent", border: `1px solid ${ACCENT}`, color: ACCENT }}>
+            编辑
+          </button>
+          <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }}
+            style={{ ...btnBase, padding: "6px 14px", background: "transparent", border: `1px solid ${DANGER}`, color: DANGER }}>
+            删除
+          </button>
+          <span style={{ fontSize: 16, color: TEXT_MUTED, transform: expanded ? "rotate(180deg)" : "none" }}>▾</span>
         </div>
       </div>
 
-      {/* Gateway Path (always visible) */}
-      <div style={{ padding: "12px 20px", background: "#0c1018" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: SUCCESS, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Gateway</span>
-          <code style={{
-            background: INPUT_BG, padding: "4px 10px", borderRadius: 6,
-            color: "#fbbf24", fontSize: 13, fontFamily: "monospace",
-            border: `1px solid ${CARD_BORDER}`, wordBreak: "break-all",
-          }}>{gatewayPath}</code>
-          <CopyBtn text={gatewayPath} label="路径" />
-          <CopyBtn text={gatewayUrl} label="完整 URL" />
-        </div>
-      </div>
-
-      {/* Expanded details */}
+      {/* Expanded: schemes + details */}
       {expanded && (
-        <div style={{ padding: "16px 20px", borderTop: `1px solid ${CARD_BORDER}` }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-            <DetailItem label="后端 URL" value={service.backendUrl} mono />
-            <DetailItem label="收款地址" value={service.recipient} mono />
-            <DetailItem label="API Key" value={service.apiKey ? "••••••••" : "未设置"} />
-            <DetailItem label="最低信誉分" value={service.minReputation === 0 ? "不限制" : String(service.minReputation)} />
-            <DetailItem label="创建时间" value={formatDate(service.createdAt)} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <DetailItem label="Service ID" value={service.id} mono />
+        <div style={{ borderTop: `1px solid ${CARD_BORDER}`, background: "#0c1018" }}>
+          {/* Service details */}
+          <div style={{ padding: "12px 20px", borderBottom: `1px solid ${CARD_BORDER}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>后端 URL</div>
+              <div style={{ fontSize: 12, color: TEXT_SECONDARY, fontFamily: "monospace", wordBreak: "break-all" }}>{service.backendUrl}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>创建时间</div>
+              <div style={{ fontSize: 12, color: TEXT_SECONDARY }}>{formatDate(service.createdAt)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>Service ID</div>
+              <div style={{ fontSize: 11, color: TEXT_SECONDARY, fontFamily: "monospace" }}>{service.id}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600, textTransform: "uppercase", marginBottom: 3 }}>最低信誉分</div>
+              <div style={{ fontSize: 12, color: TEXT_SECONDARY }}>{service.minReputation === 0 ? "不限制" : service.minReputation}</div>
+            </div>
           </div>
 
-          {/* Action buttons */}
-          <div style={{
-            display: "flex", gap: 10, justifyContent: "flex-end",
-            borderTop: `1px solid ${CARD_BORDER}`, paddingTop: 16,
-          }}>
-            <button type="button" onClick={onEdit} style={{
-              ...btnBase, background: "transparent", border: `1px solid ${ACCENT}`, color: ACCENT,
-            }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = ACCENT; e.currentTarget.style.color = "#fff"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = ACCENT; }}
-            >✏️ 编辑</button>
-            <button type="button" onClick={onDelete} style={{
-              ...btnBase, background: "transparent", border: `1px solid ${DANGER}`, color: DANGER,
-            }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = DANGER; e.currentTarget.style.color = "#fff"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = DANGER; }}
-            >🗑️ 删除</button>
+          {/* Schemes section */}
+          <div style={{ padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>支付方案</span>
+              {!addingScheme && !editingScheme && (
+                <button onClick={e => { e.stopPropagation(); openAdd(); }}
+                  style={{ background: "#1a2d1a", color: "#4ade80", border: "1px solid #166534", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12 }}>
+                  + 添加方案
+                </button>
+              )}
+            </div>
+
+            {schemes === null && <p style={{ color: TEXT_MUTED, fontSize: 12 }}>加载中...</p>}
+            {schemes?.length === 0 && !addingScheme && (
+              <p style={{ color: TEXT_MUTED, fontSize: 12, fontStyle: "italic" }}>暂无支付方案 — 点击「添加方案」</p>
+            )}
+
+            {schemes?.map(sch => {
+              if (editingScheme?.id === sch.id) {
+                return (
+                  <SchemeInlineForm key={sch.id} form={schemeForm} setForm={setSchemeForm}
+                    chains={chains} filteredTokens={filteredTokens(schemeForm.network)}
+                    isEdit saving={schemeSaving} error={schemeError}
+                    onSubmit={handleSchemeSubmit} onCancel={cancelScheme} />
+                );
+              }
+              const path = computePath(sch);
+              const tok = tokens.find(t => t.id === sch.tokenId);
+              return (
+                <div key={sch.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #0f1929", flexWrap: "wrap" }}>
+                  <Badge text={sch.network} color="#60a5fa" bg="#1e3a5f" />
+                  <span style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: 500, minWidth: 50 }}>{tok?.symbol ?? sch.tokenId}</span>
+                  <span style={{ color: "#4ade80", fontSize: 13, minWidth: 70 }}>{sch.priceAmount}</span>
+                  <span style={{ color: TEXT_MUTED, fontSize: 11, fontFamily: "monospace", minWidth: 90 }} title={sch.recipient}>
+                    {sch.recipient.slice(0, 8)}…{sch.recipient.slice(-4)}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                    <code style={{ background: INPUT_BG, padding: "3px 8px", borderRadius: 5, color: "#fbbf24", fontSize: 12, fontFamily: "monospace", border: `1px solid ${CARD_BORDER}`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 300 }} title={path}>
+                      {path}
+                    </code>
+                    <CopyBtn text={`http://localhost:8402${path}`} label="URL" />
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => openEdit(sch)}
+                      style={{ background: "transparent", color: TEXT_MUTED, border: `1px solid ${CARD_BORDER}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>
+                      编辑
+                    </button>
+                    <button onClick={() => handleDeleteScheme(sch)}
+                      style={{ background: "transparent", color: DANGER, border: `1px solid ${DANGER}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 11 }}>
+                      删除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {addingScheme && (
+              <SchemeInlineForm form={schemeForm} setForm={setSchemeForm}
+                chains={chains} filteredTokens={filteredTokens(schemeForm.network)}
+                isEdit={false} saving={schemeSaving} error={schemeError}
+                onSubmit={handleSchemeSubmit} onCancel={cancelScheme} />
+            )}
           </div>
         </div>
       )}
@@ -371,45 +393,19 @@ function ServiceCard({ service, onEdit, onDelete, providers }: {
   );
 }
 
-function DetailItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-      <div style={{
-        fontSize: 13, color: TEXT_SECONDARY, wordBreak: "break-all",
-        fontFamily: mono ? "monospace" : "inherit",
-      }}>{value}</div>
-    </div>
-  );
-}
-
-/* ────────────────────── Stats Bar ────────────────────── */
+/* ── Stats Bar ────────────────────────────────────────────────── */
 function StatsBar({ services }: { services: Service[] }) {
-  const networks = new Set(services.map((s) => s.network));
   return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24,
-    }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 24 }}>
       {[{
         label: "注册服务总数", value: services.length, icon: "📡",
       }, {
-        label: "网络覆盖", value: networks.size, icon: "🔗",
-      }, {
         label: "今日新增",
-        value: services.filter((s) => {
-          const today = new Date(); today.setHours(0, 0, 0, 0);
-          return s.createdAt >= today.getTime();
-        }).length,
+        value: services.filter(s => { const t = new Date(); t.setHours(0, 0, 0, 0); return s.createdAt >= t.getTime(); }).length,
         icon: "⚡",
-      }].map((stat) => (
-        <div key={stat.label} style={{
-          background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 12,
-          padding: "16px 20px", display: "flex", alignItems: "center", gap: 14,
-        }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10, background: "#1e293b",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-          }}>{stat.icon}</div>
+      }].map(stat => (
+        <div key={stat.label} style={{ background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 12, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{stat.icon}</div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 800, color: TEXT_PRIMARY }}>{stat.value}</div>
             <div style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: 600 }}>{stat.label}</div>
@@ -420,29 +416,18 @@ function StatsBar({ services }: { services: Service[] }) {
   );
 }
 
-/* ────────────────────── Search Bar ────────────────────── */
+/* ── Search Bar ───────────────────────────────────────────────── */
 function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ position: "relative", marginBottom: 20 }}>
-      <span style={{
-        position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-        fontSize: 14, color: TEXT_MUTED, pointerEvents: "none",
-      }}>🔍</span>
-      <input
-        type="text"
-        placeholder="搜索服务名称、路径或地址..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          ...inputStyle, paddingLeft: 38, background: CARD_BG,
-          border: `1px solid ${CARD_BORDER}`, borderRadius: 10,
-        }}
-      />
+      <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: TEXT_MUTED, pointerEvents: "none" }}>🔍</span>
+      <input type="text" placeholder="搜索服务名称、后端地址..." value={value} onChange={e => onChange(e.target.value)}
+        style={{ ...inputStyle, paddingLeft: 38, background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 10 }} />
     </div>
   );
 }
 
-/* ────────────────────── Main Component ────────────────────── */
+/* ── Main Component ───────────────────────────────────────────── */
 export function Services() {
   const [services, setServices] = useState<Service[]>([]);
   const [chains, setChains] = useState<ChainConfig[]>([]);
@@ -457,194 +442,93 @@ export function Services() {
 
   const load = useCallback(() => {
     Promise.all([listServices(), listChains(), listTokens(), listProviders()]).then(([s, c, t, p]) => {
-      setServices(s);
-      setChains(c);
-      setTokens(t);
-      setProviders(p);
+      setServices(s); setChains(c); setTokens(t); setProviders(p);
     });
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const filtered = services.filter((s) => {
+  const filtered = services.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
-    let gp: string;
-    try { gp = new URL(s.backendUrl).pathname; } catch { gp = ""; }
-    return (
-      s.name.toLowerCase().includes(q) ||
-      s.backendUrl.toLowerCase().includes(q) ||
-      s.recipient.toLowerCase().includes(q) ||
-      s.network.toLowerCase().includes(q) ||
-      gp.toLowerCase().includes(q) ||
-      s.id.toLowerCase().includes(q)
-    );
+    return s.name.toLowerCase().includes(q) || s.backendUrl.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
   });
 
-  // Create
-  const handleCreate = async (data: FormData) => {
-    setFormLoading(true);
-    setFormError(null);
+  const handleCreate = async (data: ServiceFormData) => {
+    setFormLoading(true); setFormError(null);
     try {
-      await createService({
-        name: data.name,
-        gatewayPath: data.gatewayPath,
-        backendUrl: data.backendUrl,
-        priceAmount: data.priceAmount,
-        network: data.network,
-        tokenId: data.tokenId,
-        recipient: data.recipient,
-        providerId: data.providerId,
-        apiKey: data.apiKey,
-        minReputation: data.minReputation,
-      });
-      setShowForm(false);
-      load();
-    } catch (err: any) {
-      setFormError(err.message);
-    } finally {
-      setFormLoading(false);
-    }
+      await createService({ name: data.name, backendUrl: data.backendUrl, apiKey: data.apiKey, minReputation: data.minReputation, providerId: data.providerId || undefined });
+      setShowForm(false); load();
+    } catch (err: any) { setFormError(err.message); }
+    finally { setFormLoading(false); }
   };
 
-  // Update
-  const handleUpdate = async (data: FormData) => {
+  const handleUpdate = async (data: ServiceFormData) => {
     if (!editingService) return;
-    setFormLoading(true);
-    setFormError(null);
+    setFormLoading(true); setFormError(null);
     try {
-      await updateService(editingService.id, {
-        name: data.name,
-        gatewayPath: data.gatewayPath,
-        backendUrl: data.backendUrl,
-        priceAmount: data.priceAmount,
-        network: data.network,
-        tokenId: data.tokenId,
-        recipient: data.recipient,
-        providerId: data.providerId,
-        apiKey: data.apiKey,
-        minReputation: data.minReputation,
-      });
-      setEditingService(null);
-      load();
-    } catch (err: any) {
-      setFormError(err.message);
-    } finally {
-      setFormLoading(false);
-    }
+      await updateService(editingService.id, { name: data.name, backendUrl: data.backendUrl, apiKey: data.apiKey, minReputation: data.minReputation, providerId: data.providerId || undefined });
+      setEditingService(null); load();
+    } catch (err: any) { setFormError(err.message); }
+    finally { setFormLoading(false); }
   };
 
-  // Delete
   const handleDelete = async () => {
     if (!deletingService) return;
-    try {
-      await deleteService(deletingService.id);
-      setDeletingService(null);
-      load();
-    } catch (err: any) {
-      alert(`删除失败: ${err.message}`);
-    }
+    try { await deleteService(deletingService.id); setDeletingService(null); load(); }
+    catch (err: any) { alert(`删除失败: ${err.message}`); }
   };
 
   return (
     <div>
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: TEXT_PRIMARY }}>服务管理</h1>
-          <p style={{ fontSize: 13, color: TEXT_MUTED, margin: "6px 0 0 0" }}>管理通过 x402 网关注册的 API 服务</p>
+          <p style={{ fontSize: 13, color: TEXT_MUTED, margin: "6px 0 0 0" }}>管理通过 x402 网关注册的 API 服务，点击卡片展开支付方案</p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setShowForm(true); setFormError(null); }}
-          style={{
-            ...btnBase, padding: "10px 22px", fontSize: 14,
-            background: `linear-gradient(135deg, ${ACCENT} 0%, #8b5cf6 100%)`,
-            color: "#fff", boxShadow: "0 4px 14px rgba(59,130,246,0.3)",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(59,130,246,0.4)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(59,130,246,0.3)"; }}
-        >+ 注册服务</button>
+        <button type="button" onClick={() => { setShowForm(true); setFormError(null); }}
+          style={{ ...btnBase, padding: "10px 22px", fontSize: 14, background: `linear-gradient(135deg, ${ACCENT} 0%, #8b5cf6 100%)`, color: "#fff" }}>
+          + 注册服务
+        </button>
       </div>
 
-      {/* Stats */}
       <StatsBar services={services} />
-
-      {/* Search */}
       {services.length > 0 && <SearchBar value={search} onChange={setSearch} />}
 
-      {/* Service List */}
       {services.length === 0 ? (
-        <EmptyState onAdd={() => setShowForm(true)} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "80px 24px", background: CARD_BG, border: `2px dashed ${CARD_BORDER}`, borderRadius: 16, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>🔌</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 8 }}>还没有注册任何服务</div>
+          <button type="button" onClick={() => setShowForm(true)} style={{ ...btnBase, padding: "12px 28px", fontSize: 15, background: ACCENT, color: "#fff", marginTop: 16 }}>+ 注册服务</button>
+        </div>
       ) : filtered.length === 0 ? (
-        <div style={{
-          padding: "40px 24px", textAlign: "center", color: TEXT_MUTED, fontSize: 14,
-          background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 12,
-        }}>
+        <div style={{ padding: "40px 24px", textAlign: "center", color: TEXT_MUTED, fontSize: 14, background: CARD_BG, border: `1px solid ${CARD_BORDER}`, borderRadius: 12 }}>
           没有找到匹配的服务
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.map((s) => (
-            <ServiceCard
-              key={s.id}
-              service={s}
-              providers={providers}
+          {filtered.map(s => (
+            <ServiceCard key={s.id} service={s} providers={providers} chains={chains} tokens={tokens}
               onEdit={() => { setEditingService(s); setFormError(null); }}
-              onDelete={() => setDeletingService(s)}
-            />
+              onDelete={() => setDeletingService(s)} />
           ))}
         </div>
       )}
 
-      {/* Create Modal */}
       {showForm && (
-        <ServiceFormModal
-          initial={EMPTY_FORM}
-          isEdit={false}
-          onSubmit={handleCreate}
-          onCancel={() => setShowForm(false)}
-          loading={formLoading}
-          error={formError}
-          chains={chains}
-          tokens={tokens}
-          providers={providers}
-        />
+        <ServiceFormModal initial={EMPTY_SERVICE_FORM} isEdit={false}
+          onSubmit={handleCreate} onCancel={() => setShowForm(false)}
+          loading={formLoading} error={formError} providers={providers} />
       )}
-
-      {/* Edit Modal */}
       {editingService && (
         <ServiceFormModal
-          initial={{
-            name: editingService.name,
-            gatewayPath: editingService.gatewayPath,
-            backendUrl: editingService.backendUrl,
-            priceAmount: editingService.priceAmount,
-            network: editingService.network,
-            tokenId: editingService.tokenId || "",
-            recipient: editingService.recipient,
-            providerId: editingService.providerId || "",
-            apiKey: editingService.apiKey,
-            minReputation: editingService.minReputation,
-          }}
-          isEdit
-          onSubmit={handleUpdate}
-          onCancel={() => setEditingService(null)}
-          loading={formLoading}
-          error={formError}
-          chains={chains}
-          tokens={tokens}
-          providers={providers}
-        />
+          initial={{ name: editingService.name, backendUrl: editingService.backendUrl, apiKey: editingService.apiKey, minReputation: editingService.minReputation, providerId: editingService.providerId ?? "" }}
+          isEdit onSubmit={handleUpdate} onCancel={() => setEditingService(null)}
+          loading={formLoading} error={formError} providers={providers} />
       )}
-
-      {/* Delete Confirm */}
       {deletingService && (
-        <ConfirmDialog
-          title="确认删除服务"
-          message={`确定要删除「${deletingService.name}」吗？\n删除后该服务将无法通过网关访问，且此操作不可撤销。`}
-          onConfirm={handleDelete}
-          onCancel={() => setDeletingService(null)}
-        />
+        <ConfirmDialog title="确认删除服务"
+          message={`确定要删除「${deletingService.name}」吗？\n删除后该服务及其所有支付方案将无法访问，且此操作不可撤销。`}
+          onConfirm={handleDelete} onCancel={() => setDeletingService(null)} />
       )}
     </div>
   );
