@@ -1,5 +1,5 @@
 // packages/provider-ui/src/api.ts
-import type { Service, Payment, GatewayRequest, ServiceProvider, ChainConfig, TokenConfig } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme, Payment, GatewayRequest, ServiceProvider, ChainConfig, TokenConfig } from "@x402-gateway-mvp/shared";
 import { getStoredToken, clearAuth } from "./auth.js";
 
 const BASE = "/provider";
@@ -64,6 +64,20 @@ export async function updateService(id: string, data: object): Promise<Service> 
 }
 export async function deleteService(id: string): Promise<void> {
   await req(`/services/${id}`, { method: "DELETE" });
+}
+
+// Schemes
+export async function listSchemes(serviceId: string): Promise<ServicePaymentScheme[]> {
+  return req<ServicePaymentScheme[]>(`/services/${serviceId}/schemes`);
+}
+export async function createScheme(serviceId: string, data: { network: string; tokenId: string; priceAmount: string; recipient?: string }): Promise<ServicePaymentScheme> {
+  return req<ServicePaymentScheme>(`/services/${serviceId}/schemes`, { method: "POST", body: JSON.stringify(data) });
+}
+export async function updateScheme(serviceId: string, schemeId: string, data: { priceAmount?: string; recipient?: string }): Promise<ServicePaymentScheme> {
+  return req<ServicePaymentScheme>(`/services/${serviceId}/schemes/${schemeId}`, { method: "PUT", body: JSON.stringify(data) });
+}
+export async function deleteScheme(serviceId: string, schemeId: string): Promise<void> {
+  await req(`/services/${serviceId}/schemes/${schemeId}`, { method: "DELETE" });
 }
 
 // Data
