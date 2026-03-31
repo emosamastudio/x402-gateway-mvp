@@ -521,8 +521,9 @@ export function createDb(path: string) {
 
     insertService(svc: Service) {
       db.prepare(`
-        INSERT INTO services (id, provider_id, name, backend_url, api_key, min_reputation, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO services (id, provider_id, name, backend_url, api_key, min_reputation, created_at,
+          gateway_path, network, token_id, price_amount, price_currency, recipient)
+        VALUES (?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '')
       `).run(svc.id, svc.providerId ?? "", svc.name, svc.backendUrl, svc.apiKey, svc.minReputation, svc.createdAt);
     },
 
