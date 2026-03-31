@@ -20,14 +20,16 @@ export const UpdateServiceProviderSchema = z.object({
 export const CreateServiceSchema = z.object({
   name: z.string().min(1).max(100),
   providerId: z.string().default(""),
-  gatewayPath: z.string().min(1).regex(/^\//, "Must start with /"),
   backendUrl: z.string().url(),
-  priceAmount: z.string().regex(/^\d+(\.\d{1,6})?$/, "Must be a decimal number with at most 6 decimal places"),
-  network: NetworkSchema,
-  tokenId: z.string().min(1),
-  recipient: z.string().regex(/^0x[0-9a-fA-F]{40}$/, "Must be an EVM address").optional(),
   apiKey: z.string().default(""),
   minReputation: z.number().int().min(0).default(0),
+});
+
+export const CreateServicePaymentSchemeSchema = z.object({
+  network: NetworkSchema,
+  tokenId: z.string().min(1),
+  priceAmount: z.string().regex(/^\d+(\.\d{1,6})?$/),
+  recipient: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
 });
 
 export const CreateChainSchema = z.object({

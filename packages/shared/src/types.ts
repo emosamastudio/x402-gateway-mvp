@@ -89,18 +89,23 @@ export interface ServiceProvider {
 
 export interface Service {
   id: string;
-  providerId: string;    // FK → ServiceProvider.id (empty = legacy/unassigned)
+  providerId: string;
   name: string;
-  gatewayPath: string;   // Custom gateway route, e.g. "/echo" or "/api/weather"
   backendUrl: string;
-  priceAmount: string;   // e.g. "0.001" (human-readable token amount)
-  priceCurrency: string; // token symbol — e.g. "DMHKD", "USDC"
-  network: Network;      // chain slug — e.g. "optimism-sepolia"
-  tokenId: string;       // FK → TokenConfig.id, e.g. "dmhkd-optimism-sepolia"
-  recipient: string;     // Payment recipient (overrides Provider wallet if set)
-  apiKey: string;        // Optional API key forwarded to backend (empty = none)
-  minReputation: number; // 0 = no restriction
-  createdAt: number;     // Unix timestamp
+  apiKey: string;
+  minReputation: number;
+  createdAt: number;
+}
+
+export interface ServicePaymentScheme {
+  id: string;           // "scheme_<uuid>"
+  serviceId: string;    // FK → Service.id
+  network: Network;     // chain slug
+  tokenId: string;      // FK → TokenConfig.id
+  priceAmount: string;  // e.g. "0.001"
+  priceCurrency: string; // token.symbol, denormalized for display
+  recipient: string;    // concrete EVM address (resolved at creation time)
+  createdAt: number;
 }
 
 export interface Payment {
