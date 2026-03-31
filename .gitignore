@@ -2,10 +2,31 @@ node_modules
 dist
 *.db
 .env
+*.env.*
 *.zip
+*.log
 
+# Build cache
 .turbo
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AI assistant tooling
+.claude/
+.cursor/
+.aider/
+.copilot/
 
 # Browser automation artifacts
 .playwright-mcp/
+
+# Git worktrees (local only)
 .worktrees/
