@@ -13,44 +13,33 @@ describe("Database", () => {
     db.insertService({
       id: "svc_1",
       name: "Weather API",
-      gatewayPath: "/weather",
       backendUrl: "http://localhost:3001",
-      priceAmount: "0.001",
-      priceCurrency: "DMHKD",
-      network: "optimism-sepolia",
-      tokenId: "dmhkd-optimism-sepolia",
-      recipient: "0x1111111111111111111111111111111111111111",
+      providerId: "",
       apiKey: "",
       minReputation: 0,
       createdAt: 1000,
     });
     const svc = db.getServiceById("svc_1");
     expect(svc?.name).toBe("Weather API");
-    expect(svc?.priceAmount).toBe("0.001");
+    expect(svc?.backendUrl).toBe("http://localhost:3001");
   });
 
   it("lists all services", () => {
     db.insertService({
-      id: "svc_1", name: "A", gatewayPath: "/a", backendUrl: "http://a.com",
-      priceAmount: "0.001", priceCurrency: "USDC", network: "optimism-sepolia",
-      tokenId: "usdc-optimism-sepolia",
-      recipient: "0x1111111111111111111111111111111111111111", apiKey: "", minReputation: 0, createdAt: 1,
+      id: "svc_1", name: "A", backendUrl: "http://a.com",
+      providerId: "", apiKey: "", minReputation: 0, createdAt: 1,
     });
     db.insertService({
-      id: "svc_2", name: "B", gatewayPath: "/b", backendUrl: "http://b.com",
-      priceAmount: "0.002", priceCurrency: "USDC", network: "sepolia",
-      tokenId: "usdc-sepolia",
-      recipient: "0x2222222222222222222222222222222222222222", apiKey: "", minReputation: 50, createdAt: 2,
+      id: "svc_2", name: "B", backendUrl: "http://b.com",
+      providerId: "", apiKey: "", minReputation: 50, createdAt: 2,
     });
     expect(db.listServices()).toHaveLength(2);
   });
 
   it("inserts and queries payments", () => {
     db.insertService({
-      id: "svc_1", name: "A", gatewayPath: "/a", backendUrl: "http://a.com",
-      priceAmount: "0.001", priceCurrency: "USDC", network: "optimism-sepolia",
-      tokenId: "usdc-optimism-sepolia",
-      recipient: "0x1111111111111111111111111111111111111111", apiKey: "", minReputation: 0, createdAt: 1,
+      id: "svc_1", name: "A", backendUrl: "http://a.com",
+      providerId: "", apiKey: "", minReputation: 0, createdAt: 1,
     });
     db.insertPayment({
       id: "pay_1", requestId: "req_1", serviceId: "svc_1",
@@ -184,19 +173,16 @@ describe("Database", () => {
   describe("service update and delete", () => {
     beforeEach(() => {
       db.insertService({
-        id: "svc_upd", name: "Updatable", gatewayPath: "/upd", backendUrl: "http://upd.com",
-        priceAmount: "0.001", priceCurrency: "DMHKD", network: "optimism-sepolia",
-        tokenId: "dmhkd-optimism-sepolia",
-        recipient: "0x3333333333333333333333333333333333333333", apiKey: "", minReputation: 0, createdAt: 1,
+        id: "svc_upd", name: "Updatable", backendUrl: "http://upd.com",
+        providerId: "", apiKey: "", minReputation: 0, createdAt: 1,
       });
     });
 
     it("updates service fields", () => {
-      const ok = db.updateService("svc_upd", { name: "Renamed", priceAmount: "0.002" });
+      const ok = db.updateService("svc_upd", { name: "Renamed" });
       expect(ok).toBe(true);
       const svc = db.getServiceById("svc_upd");
       expect(svc?.name).toBe("Renamed");
-      expect(svc?.priceAmount).toBe("0.002");
     });
 
     it("returns false when updating non-existent service", () => {
@@ -310,6 +296,50 @@ describe("Database", () => {
       db.pruneExpiredNonces(5);
       expect(db.isNonceUsed("0xold")).toBe(false);
       expect(db.isNonceUsed("0xfresh")).toBe(true);
+    });
+  });
+
+  // ── Service Payment Schemes ──────────────────────────────────────────
+
+  describe("service payment schemes", () => {
+    beforeEach(() => {
+      db.insertService({
+        id: "svc_scheme_test", providerId: "", name: "Scheme Test",
+        backendUrl: "http://test.com", apiKey: "", minReputation: 0, createdAt: Date.now(),
+      });
+      db.insertScheme({
+        id: "scheme_test_1",
+        serviceId: "svc_scheme_test",
+        network: "test-network",
+        tokenId: "token-1",
+        priceAmount: "0.001",
+        priceCurrency: "USDC",
+        recipient: "0x1234567890123456789012345678901234567890",
+        createdAt: Date.now(),
+      });
+    });
+
+    it("inserts and retrieves a scheme", () => {
+      const fetched = db.getScheme("scheme_test_1");
+      expect(fetched).toBeDefined();
+      expect(fetched!.priceAmount).toBe("0.001");
+      expect(fetched!.serviceId).toBe("svc_scheme_test");
+    });
+
+    it("lists schemes by service", () => {
+      const schemes = db.listSchemesByService("svc_scheme_test");
+      expect(schemes.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("updates scheme price", () => {
+      db.updateScheme("scheme_test_1", { priceAmount: "0.002" });
+      const updated = db.getScheme("scheme_test_1");
+      expect(updated!.priceAmount).toBe("0.002");
+    });
+
+    it("deletes scheme", () => {
+      db.deleteScheme("scheme_test_1");
+      expect(db.getScheme("scheme_test_1")).toBeUndefined();
     });
   });
 });

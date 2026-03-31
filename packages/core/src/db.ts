@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
-import type { Service, Payment, AgentInfo, GatewayRequest, ChainConfig, TokenConfig, RpcEndpoint, ServiceProvider } from "@x402-gateway-mvp/shared";
+import type { Service, Payment, AgentInfo, GatewayRequest, ChainConfig, TokenConfig, RpcEndpoint, ServiceProvider, ServicePaymentScheme, Network } from "@x402-gateway-mvp/shared";
+import { slugify } from "@x402-gateway-mvp/shared";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS chains (
@@ -40,13 +41,13 @@ CREATE TABLE IF NOT EXISTS services (
   id TEXT PRIMARY KEY,
   provider_id TEXT NOT NULL DEFAULT '',
   name TEXT NOT NULL,
-  gateway_path TEXT NOT NULL,
+  gateway_path TEXT NOT NULL DEFAULT '/',
   backend_url TEXT NOT NULL,
-  price_amount TEXT NOT NULL,
-  price_currency TEXT NOT NULL,
-  network TEXT NOT NULL,
+  price_amount TEXT NOT NULL DEFAULT '',
+  price_currency TEXT NOT NULL DEFAULT '',
+  network TEXT NOT NULL DEFAULT '',
   token_id TEXT NOT NULL DEFAULT '',
-  recipient TEXT NOT NULL,
+  recipient TEXT NOT NULL DEFAULT '',
   api_key TEXT NOT NULL DEFAULT '',
   min_reputation INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
@@ -127,6 +128,21 @@ CREATE TABLE IF NOT EXISTS used_nonces (
   agent_address TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS service_payment_schemes (
+  id TEXT PRIMARY KEY,
+  service_id TEXT NOT NULL,
+  network TEXT NOT NULL,
+  token_id TEXT NOT NULL,
+  price_amount TEXT NOT NULL,
+  price_currency TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_schemes_service_id
+  ON service_payment_schemes (service_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schemes_service_network_token
+  ON service_payment_schemes (service_id, network, token_id);
 `;
 
 export function createDb(path: string) {
@@ -220,6 +236,28 @@ export function createDb(path: string) {
       id, c.id, c.rpc_url, "Primary", 0, 1, "unknown", 0, -1, 0, 0, Date.now()
     );
   }
+
+  // ── Backfill: migrate existing service payment fields to schemes table ─────
+  db.prepare(`
+    INSERT OR IGNORE INTO service_payment_schemes
+      (id, service_id, network, token_id, price_amount, price_currency, recipient, created_at)
+    SELECT
+      'scheme_migrated_' || id,
+      id,
+      network,
+      token_id,
+      price_amount,
+      price_currency,
+      recipient,
+      created_at
+    FROM services
+    WHERE network != ''
+      AND price_amount != ''
+      AND token_id != ''
+      AND NOT EXISTS (
+        SELECT 1 FROM service_payment_schemes WHERE service_id = services.id
+      )
+  `).run();
 
   return {
     // ── Chains ─────────────────────────────────────────────────────
@@ -481,10 +519,9 @@ export function createDb(path: string) {
 
     insertService(svc: Service) {
       db.prepare(`
-        INSERT INTO services (id, provider_id, name, gateway_path, backend_url, price_amount, price_currency, network, token_id, recipient, api_key, min_reputation, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(svc.id, svc.providerId ?? "", svc.name, svc.gatewayPath, svc.backendUrl, svc.priceAmount, svc.priceCurrency,
-              svc.network, svc.tokenId ?? "", svc.recipient ?? "", svc.apiKey, svc.minReputation, svc.createdAt);
+        INSERT INTO services (id, provider_id, name, backend_url, api_key, min_reputation, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(svc.id, svc.providerId ?? "", svc.name, svc.backendUrl, svc.apiKey, svc.minReputation, svc.createdAt);
     },
 
     getServiceById(id: string): Service | undefined {
@@ -497,18 +534,12 @@ export function createDb(path: string) {
         .map(rowToService);
     },
 
-    updateService(id: string, updates: Partial<Pick<Service, "providerId" | "name" | "gatewayPath" | "backendUrl" | "priceAmount" | "priceCurrency" | "network" | "tokenId" | "recipient" | "apiKey" | "minReputation">>): boolean {
+    updateService(id: string, updates: Partial<Pick<Service, "providerId" | "name" | "backendUrl" | "apiKey" | "minReputation">>): boolean {
       const fields: string[] = [];
       const values: any[] = [];
       if (updates.providerId !== undefined) { fields.push("provider_id = ?"); values.push(updates.providerId); }
       if (updates.name !== undefined) { fields.push("name = ?"); values.push(updates.name); }
-      if (updates.gatewayPath !== undefined) { fields.push("gateway_path = ?"); values.push(updates.gatewayPath); }
       if (updates.backendUrl !== undefined) { fields.push("backend_url = ?"); values.push(updates.backendUrl); }
-      if (updates.priceAmount !== undefined) { fields.push("price_amount = ?"); values.push(updates.priceAmount); }
-      if (updates.priceCurrency !== undefined) { fields.push("price_currency = ?"); values.push(updates.priceCurrency); }
-      if (updates.network !== undefined) { fields.push("network = ?"); values.push(updates.network); }
-      if (updates.tokenId !== undefined) { fields.push("token_id = ?"); values.push(updates.tokenId); }
-      if (updates.recipient !== undefined) { fields.push("recipient = ?"); values.push(updates.recipient); }
       if (updates.apiKey !== undefined) { fields.push("api_key = ?"); values.push(updates.apiKey); }
       if (updates.minReputation !== undefined) { fields.push("min_reputation = ?"); values.push(updates.minReputation); }
       if (fields.length === 0) return false;
@@ -518,8 +549,70 @@ export function createDb(path: string) {
     },
 
     deleteService(id: string): boolean {
+      db.prepare("DELETE FROM service_payment_schemes WHERE service_id = ?").run(id);
       const result = db.prepare("DELETE FROM services WHERE id = ?").run(id);
       return result.changes > 0;
+    },
+
+    // ── Service Payment Schemes ───────────────────────────────────────
+    insertScheme(scheme: ServicePaymentScheme): void {
+      db.prepare(`
+        INSERT INTO service_payment_schemes (id, service_id, network, token_id, price_amount, price_currency, recipient, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(scheme.id, scheme.serviceId, scheme.network, scheme.tokenId, scheme.priceAmount, scheme.priceCurrency, scheme.recipient, scheme.createdAt);
+    },
+
+    getScheme(id: string): ServicePaymentScheme | undefined {
+      const row = db.prepare("SELECT * FROM service_payment_schemes WHERE id = ?").get(id) as any;
+      return row ? rowToScheme(row) : undefined;
+    },
+
+    listSchemesByService(serviceId: string): ServicePaymentScheme[] {
+      return (db.prepare("SELECT * FROM service_payment_schemes WHERE service_id = ? ORDER BY created_at ASC").all(serviceId) as any[]).map(rowToScheme);
+    },
+
+    updateScheme(id: string, updates: Partial<Pick<ServicePaymentScheme, "priceAmount" | "recipient">>): boolean {
+      const fields: string[] = [];
+      const values: any[] = [];
+      if (updates.priceAmount !== undefined) { fields.push("price_amount = ?"); values.push(updates.priceAmount); }
+      if (updates.recipient !== undefined) { fields.push("recipient = ?"); values.push(updates.recipient); }
+      if (fields.length === 0) return false;
+      values.push(id);
+      return db.prepare(`UPDATE service_payment_schemes SET ${fields.join(", ")} WHERE id = ?`).run(...values).changes > 0;
+    },
+
+    deleteScheme(id: string): boolean {
+      return db.prepare("DELETE FROM service_payment_schemes WHERE id = ?").run(id).changes > 0;
+    },
+
+    deleteSchemesByService(serviceId: string): void {
+      db.prepare("DELETE FROM service_payment_schemes WHERE service_id = ?").run(serviceId);
+    },
+
+    resolveSchemeByPath(
+      providerSlug: string,
+      serviceSlug: string,
+      network: string,
+      tokenSlug: string
+    ): { service: Service; scheme: ServicePaymentScheme; provider: ServiceProvider } | undefined {
+      const allProviders = db.prepare("SELECT * FROM service_providers ORDER BY created_at ASC").all() as any[];
+      const provider = allProviders.map(rowToProvider).find(p => slugify(p.name) === providerSlug);
+      if (!provider) return undefined;
+
+      const allServices = db.prepare("SELECT * FROM services WHERE provider_id = ? ORDER BY created_at DESC").all(provider.id) as any[];
+      const service = allServices.map(rowToService).find(s => slugify(s.name) === serviceSlug);
+      if (!service) return undefined;
+
+      const schemes = db.prepare("SELECT * FROM service_payment_schemes WHERE service_id = ? ORDER BY created_at ASC").all(service.id) as any[];
+      for (const row of schemes) {
+        const scheme = rowToScheme(row);
+        if (scheme.network !== network) continue;
+        const tokenRow = db.prepare("SELECT * FROM tokens WHERE id = ?").get(scheme.tokenId) as any;
+        if (tokenRow && slugify(tokenRow.symbol) === tokenSlug) {
+          return { provider, service, scheme };
+        }
+      }
+      return undefined;
     },
 
     // ── Requests ─────────────────────────────────────────────────────
@@ -689,17 +782,28 @@ function rowToProvider(row: any): ServiceProvider {
   };
 }
 
+function rowToScheme(row: any): ServicePaymentScheme {
+  return {
+    id: row.id,
+    serviceId: row.service_id,
+    network: row.network as Network,
+    tokenId: row.token_id,
+    priceAmount: row.price_amount,
+    priceCurrency: row.price_currency,
+    recipient: row.recipient,
+    createdAt: row.created_at,
+  };
+}
+
 function rowToService(row: any): Service {
   return {
     id: row.id,
     providerId: row.provider_id ?? "",
-    name: row.name, gatewayPath: row.gateway_path ?? "/",
+    name: row.name,
     backendUrl: row.backend_url,
-    priceAmount: row.price_amount, priceCurrency: row.price_currency,
-    network: row.network, tokenId: row.token_id ?? "",
-    recipient: row.recipient,
     apiKey: row.api_key ?? "",
-    minReputation: row.min_reputation, createdAt: row.created_at,
+    minReputation: row.min_reputation,
+    createdAt: row.created_at,
   };
 }
 
