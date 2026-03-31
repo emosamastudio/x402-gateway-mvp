@@ -4,11 +4,8 @@ import { proxyToBackend } from "../proxy.js";
 import type { Service } from "@x402-gateway-mvp/shared";
 
 const mockService: Service = {
-  id: "svc_1", name: "Test", gatewayPath: "/weather",
+  id: "svc_1", name: "Test",
   backendUrl: "http://backend:3001",
-  priceAmount: "0.001", priceCurrency: "DMHKD", network: "optimism-sepolia",
-  tokenId: "dmhkd-optimism-sepolia",
-  recipient: "0x1111111111111111111111111111111111111111",
   apiKey: "", minReputation: 0, createdAt: 1, providerId: "",
 };
 
@@ -24,9 +21,9 @@ describe("proxyToBackend", () => {
     vi.unstubAllGlobals();
   });
 
-  function makeApp(svc: Service = mockService) {
+  function makeApp(svc: Service = mockService, gatewayPrefix = "/weather") {
     const app = new Hono();
-    app.all("/*", (c) => proxyToBackend(c, svc));
+    app.all("/*", (c) => proxyToBackend(c, svc, gatewayPrefix));
     return app;
   }
 

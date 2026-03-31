@@ -1,22 +1,26 @@
 import type { Context, Next } from "hono";
-import type { Service, PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme, PaymentPayload, PaymentRequirement } from "@x402-gateway-mvp/shared";
 import { toUsdcUnits } from "@x402-gateway-mvp/shared";
 import { getDomainSeparator, getTokenConfig, getChainConfig } from "@x402-gateway-mvp/chain";
 import { verifyPayment, settlePayment } from "@x402-gateway-mvp/facilitator";
 import { getDb } from "../db.js";
 import { randomUUID } from "crypto";
 
-async function buildPaymentRequirement(service: Service, requestUrl: string): Promise<PaymentRequirement> {
-  const token = getTokenConfig(service.tokenId);
-  const chain = getChainConfig(service.network);
-  const domainSeparator = await getDomainSeparator(service.network, token.contractAddress);
+async function buildPaymentRequirement(
+  service: Service,
+  scheme: ServicePaymentScheme,
+  requestUrl: string
+): Promise<PaymentRequirement> {
+  const token = getTokenConfig(scheme.tokenId);
+  const chain = getChainConfig(scheme.network);
+  const domainSeparator = await getDomainSeparator(scheme.network, token.contractAddress);
   return {
-    network: service.network,
+    network: scheme.network,
     chainId: chain.chainId,
-    maxAmountRequired: toUsdcUnits(service.priceAmount).toString(),
+    maxAmountRequired: toUsdcUnits(scheme.priceAmount).toString(),
     resource: requestUrl,
     description: `Access to ${service.name}`,
-    payTo: service.recipient,
+    payTo: scheme.recipient,
     maxTimeoutSeconds: 300,
     asset: token.contractAddress,
     assetSymbol: token.symbol,
@@ -27,17 +31,18 @@ async function buildPaymentRequirement(service: Service, requestUrl: string): Pr
   };
 }
 
-type ServiceResolver = (path: string) => Service | undefined;
+type SchemeResolver = (path: string) => { service: Service; scheme: ServicePaymentScheme } | undefined;
 
-export function x402Middleware(resolveService: ServiceResolver) {
+export function x402Middleware(resolveScheme: SchemeResolver) {
   return async (c: Context, next: Next) => {
-    const service = resolveService(c.req.path);
-    if (!service) return next(); // Not a protected route — pass through
+    const resolved = resolveScheme(c.req.path);
+    if (!resolved) return next(); // Not a protected route — pass through
 
+    const { service, scheme } = resolved;
     const db = getDb();
     const agentAddress = c.req.header("X-Agent-Address") ?? c.req.header("x-agent-address") ?? "";
     const paymentHeader = c.req.header("PAYMENT-SIGNATURE");
-    const requirement = await buildPaymentRequirement(service, c.req.url);
+    const requirement = await buildPaymentRequirement(service, scheme, c.req.url);
     const now = Date.now();
 
     // ── No payment header → 402 challenge (create request record) ────
@@ -49,7 +54,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
         agentAddress,
         method: c.req.method,
         path: c.req.path,
-        network: service.network,
+        network: scheme.network,
         gatewayStatus: "payment_required",
         httpStatus: 402,
         responseStatus: 0,
@@ -82,7 +87,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
       } else {
         db.insertRequest({
           id: requestId, serviceId: service.id, agentAddress,
-          method: c.req.method, path: c.req.path, network: service.network,
+          method: c.req.method, path: c.req.path, network: scheme.network,
           gatewayStatus: "payment_rejected", httpStatus: 402,
           responseStatus: 0, responseBody: "",
           errorReason: "Invalid payment header (malformed base64/JSON)",
@@ -103,7 +108,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
       } else {
         db.insertRequest({
           id: requestId, serviceId: service.id, agentAddress,
-          method: c.req.method, path: c.req.path, network: service.network,
+          method: c.req.method, path: c.req.path, network: scheme.network,
           gatewayStatus: "payment_rejected", httpStatus: 402,
           responseStatus: 0, responseBody: "",
           errorReason: `Payment verification failed: ${verifyResult.error}`,
@@ -124,7 +129,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
       db.insertRequest({
         id: requestId, serviceId: service.id,
         agentAddress: payload.payload.authorization.from || agentAddress,
-        method: c.req.method, path: c.req.path, network: service.network,
+        method: c.req.method, path: c.req.path, network: scheme.network,
         gatewayStatus: "verifying", httpStatus: 0,
         responseStatus: 0, responseBody: "",
         errorReason: "", paymentId: "",
@@ -135,7 +140,7 @@ export function x402Middleware(resolveService: ServiceResolver) {
     // Store payload & requestId in context for downstream handlers
     c.set("paymentPayload", payload);
     c.set("paymentRequirement", requirement);
-    c.set("paymentService", service);
+    c.set("paymentScheme", scheme);
     c.set("requestId", requestId);
 
     return next();
@@ -145,14 +150,14 @@ export function x402Middleware(resolveService: ServiceResolver) {
 // Call this after backend responds successfully to settle on-chain
 export async function settleAfterSuccess(c: Context): Promise<string | null> {
   const payload = c.get("paymentPayload") as PaymentPayload | undefined;
-  const service = c.get("paymentService") as Service | undefined;
+  const scheme = c.get("paymentScheme") as ServicePaymentScheme | undefined;
   const requirement = c.get("paymentRequirement") as PaymentRequirement | undefined;
-  if (!payload || !service || !requirement) return null;
+  if (!payload || !scheme || !requirement) return null;
 
   const result = await settlePayment(
     payload.payload.authorization,
     payload.payload.signature,
-    service.network,
+    scheme.network,
     requirement.asset,
   );
   return result.txHash;
