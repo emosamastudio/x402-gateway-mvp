@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import { fileURLToPath } from "url";
+import { resolve, dirname } from "path";
 import type { Service, Payment, AgentInfo, GatewayRequest, ChainConfig, TokenConfig, RpcEndpoint, ServiceProvider } from "@x402-gateway-mvp/shared";
 
 const SCHEMA = `
@@ -789,6 +791,11 @@ function rowToRpcEndpoint(row: any): RpcEndpoint {
 // Singleton for production use
 let _db: ReturnType<typeof createDb> | null = null;
 export function getDb(): ReturnType<typeof createDb> {
-  if (!_db) _db = createDb(process.env.DB_PATH ?? "./gateway.db");
+  if (!_db) {
+    // Resolve relative to this file's location (packages/core/src/ or dist/) so the path
+    // is always the workspace-root gateway.db regardless of CWD or how the server is started.
+    const defaultPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../..", "gateway.db");
+    _db = createDb(process.env.DB_PATH ?? defaultPath);
+  }
   return _db;
 }

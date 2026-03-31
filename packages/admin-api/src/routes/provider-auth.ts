@@ -49,6 +49,9 @@ providerAuthRouter.post("/verify", async (c) => {
     db.insertProvider({ id, name: "", walletAddress, description: "", website: "", createdAt: now });
     provider = db.getProvider(id)!;
     needsProfile = true;
+  } else if (!provider.name.trim()) {
+    // Provider exists but registration was never completed
+    needsProfile = true;
   }
 
   const token = await signProviderJwt(provider.id, walletAddress);
