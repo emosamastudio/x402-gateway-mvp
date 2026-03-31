@@ -356,12 +356,13 @@ tokensRouter.put("/:id", async (c) => {
 tokensRouter.delete("/:id", (c) => {
   const id = c.req.param("id");
   const db = getDb();
-  // Check if any services reference this token
-  const services = db.listServices().filter((s) => s.tokenId === id);
-  if (services.length > 0) {
+  // Check if any schemes reference this token
+  const allServices = db.listServices();
+  const schemesUsingToken = allServices.flatMap((s) => db.listSchemesByService(s.id)).filter((sc) => sc.tokenId === id);
+  if (schemesUsingToken.length > 0) {
     return c.json({
-      error: `Cannot delete: ${services.length} service(s) reference this token`,
-      services: services.map((s) => ({ id: s.id, name: s.name })),
+      error: `Cannot delete: ${schemesUsingToken.length} payment scheme(s) reference this token`,
+      schemeIds: schemesUsingToken.map((sc) => sc.id),
     }, 409);
   }
   const ok = db.deleteToken(id);

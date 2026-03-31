@@ -14,36 +14,20 @@ servicesRouter.post("/", async (c) => {
 
   const db = getDb();
 
-  // Validate chain exists
-  if (!db.getChain(parsed.data.network)) {
-    return c.json({ error: `Chain "${parsed.data.network}" not found. Create the chain first.` }, 400);
-  }
-  // Validate token exists and matches chain
-  const token = db.getToken(parsed.data.tokenId);
-  if (!token) {
-    return c.json({ error: `Token "${parsed.data.tokenId}" not found. Create the token first.` }, 400);
-  }
-  if (token.chainSlug !== parsed.data.network) {
-    return c.json({ error: `Token "${parsed.data.tokenId}" is on chain "${token.chainSlug}", not "${parsed.data.network}"` }, 400);
-  }
-
-  // Provider / recipient resolution
-  let recipient = parsed.data.recipient ?? "";
+  // Provider validation
   const providerId = parsed.data.providerId ?? "";
   if (providerId) {
     const prov = db.getProvider(providerId);
     if (!prov) return c.json({ error: `Provider "${providerId}" not found` }, 400);
-    if (!recipient) recipient = prov.walletAddress;
-  } else {
-    if (!recipient) return c.json({ error: "recipient is required when no providerId is provided" }, 400);
   }
 
   const service = {
-    ...parsed.data,
     id: `svc_${randomUUID()}`,
-    priceCurrency: token.symbol,
-    recipient,
-    providerId: providerId,
+    providerId,
+    name: parsed.data.name,
+    backendUrl: parsed.data.backendUrl,
+    apiKey: parsed.data.apiKey,
+    minReputation: parsed.data.minReputation,
     createdAt: Date.now(),
   };
   db.insertService(service);
@@ -62,9 +46,6 @@ servicesRouter.get("/:id", (c) => {
   return c.json(service);
 });
 
-const EVM_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
-const PRICE_RE = /^\d+(\.\d{1,6})?$/;
-
 servicesRouter.put("/:id", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
@@ -80,39 +61,9 @@ servicesRouter.put("/:id", async (c) => {
       errors.push("name must be 1-100 characters");
     } else { updates.name = body.name; }
   }
-  if (body.gatewayPath !== undefined) {
-    if (typeof body.gatewayPath !== "string" || !body.gatewayPath.startsWith("/")) {
-      errors.push("gatewayPath must start with /");
-    } else { updates.gatewayPath = body.gatewayPath; }
-  }
   if (body.backendUrl !== undefined) {
     try { new URL(body.backendUrl); updates.backendUrl = body.backendUrl; }
     catch { errors.push("backendUrl must be a valid URL"); }
-  }
-  if (body.priceAmount !== undefined) {
-    if (typeof body.priceAmount !== "string" || !PRICE_RE.test(body.priceAmount)) {
-      errors.push("priceAmount must be a decimal with at most 6 places");
-    } else { updates.priceAmount = body.priceAmount; }
-  }
-  if (body.network !== undefined) {
-    if (typeof body.network !== "string" || !db.getChain(body.network)) {
-      errors.push(`network "${body.network}" not found`);
-    } else { updates.network = body.network; }
-  }
-  if (body.tokenId !== undefined) {
-    const tok = db.getToken(body.tokenId);
-    if (!tok) {
-      errors.push(`tokenId "${body.tokenId}" not found`);
-    } else {
-      const effectiveNetwork = updates.network ?? existing.network;
-      if (tok.chainSlug !== effectiveNetwork) {
-        errors.push(`Token "${body.tokenId}" is on chain "${tok.chainSlug}", not "${effectiveNetwork}"`);
-      } else {
-        updates.tokenId = body.tokenId;
-        // Auto-sync priceCurrency when token changes
-        updates.priceCurrency = tok.symbol;
-      }
-    }
   }
   if (body.providerId !== undefined) {
     if (typeof body.providerId !== "string") {
@@ -124,11 +75,6 @@ servicesRouter.put("/:id", async (c) => {
     } else {
       updates.providerId = "";
     }
-  }
-  if (body.recipient !== undefined) {
-    if (typeof body.recipient !== "string" || !EVM_ADDR_RE.test(body.recipient)) {
-      errors.push("recipient must be a valid EVM address");
-    } else { updates.recipient = body.recipient; }
   }
   if (body.apiKey !== undefined) {
     if (typeof body.apiKey !== "string") {
@@ -143,12 +89,6 @@ servicesRouter.put("/:id", async (c) => {
 
   if (errors.length > 0) return c.json({ error: "Invalid input", details: errors }, 400);
   if (Object.keys(updates).length === 0) return c.json({ error: "At least one field required" }, 400);
-
-  // If providerId updated and recipient not provided in this update, auto-fill recipient from provider
-  if (updates.providerId !== undefined && updates.recipient === undefined && updates.providerId) {
-    const prov = db.getProvider(updates.providerId);
-    if (prov) updates.recipient = prov.walletAddress;
-  }
 
   db.updateService(id, updates);
   const updated = db.getServiceById(id);

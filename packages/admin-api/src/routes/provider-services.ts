@@ -27,26 +27,13 @@ providerServicesRouter.post("/", async (c) => {
 
   const db = getDb();
 
-  if (!db.getChain(parsed.data.network)) {
-    return c.json({ error: `Chain "${parsed.data.network}" not found` }, 400);
-  }
-  const token = db.getToken(parsed.data.tokenId);
-  if (!token) {
-    return c.json({ error: `Token "${parsed.data.tokenId}" not found` }, 400);
-  }
-  if (token.chainSlug !== parsed.data.network) {
-    return c.json({ error: `Token "${parsed.data.tokenId}" is on chain "${token.chainSlug}", not "${parsed.data.network}"` }, 400);
-  }
-
-  const provider = db.getProvider(providerId)!;
-  const recipient = parsed.data.recipient || provider.walletAddress;
-
   const service = {
-    ...parsed.data,
     id: `svc_${randomUUID()}`,
-    priceCurrency: token.symbol,
     providerId,
-    recipient,
+    name: parsed.data.name,
+    backendUrl: parsed.data.backendUrl,
+    apiKey: parsed.data.apiKey,
+    minReputation: parsed.data.minReputation,
     createdAt: Date.now(),
   };
   db.insertService(service);
@@ -64,7 +51,7 @@ providerServicesRouter.put("/:id", async (c) => {
   if (service.providerId !== providerId) return c.json({ error: "Forbidden" }, 403);
 
   const body = await c.req.json();
-  const allowed = ["name", "backendUrl", "priceAmount", "apiKey", "minReputation", "recipient"];
+  const allowed = ["name", "backendUrl", "apiKey", "minReputation"];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (body[key] !== undefined) updates[key] = body[key];

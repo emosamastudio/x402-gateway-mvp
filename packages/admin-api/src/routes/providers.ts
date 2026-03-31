@@ -78,12 +78,15 @@ providersRouter.put("/:id", async (c) => {
 
   db.updateProvider(id, updates);
 
-  // If wallet changed, auto-update recipient on services that used the OLD wallet
+  // If wallet changed, auto-update recipient on schemes that used the OLD wallet
   if (updates.walletAddress && updates.walletAddress.toLowerCase() !== existing.walletAddress.toLowerCase()) {
     const svcs = db.listServicesByProvider(id);
     for (const svc of svcs) {
-      if (svc.recipient.toLowerCase() === existing.walletAddress.toLowerCase()) {
-        db.updateService(svc.id, { recipient: updates.walletAddress });
+      const schemes = db.listSchemesByService(svc.id);
+      for (const scheme of schemes) {
+        if (scheme.recipient.toLowerCase() === existing.walletAddress.toLowerCase()) {
+          db.updateScheme(scheme.id, { recipient: updates.walletAddress });
+        }
       }
     }
   }
