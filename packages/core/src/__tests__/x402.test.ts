@@ -46,14 +46,22 @@ vi.mock("../db.js", () => ({
 
 import { verifyPayment } from "@x402-gateway-mvp/facilitator";
 import { x402Middleware, settleAfterSuccess } from "../middleware/x402.js";
-import type { Service } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme } from "@x402-gateway-mvp/shared";
 
 const mockService: Service = {
-  id: "svc_1", name: "Test API", gatewayPath: "/api", backendUrl: "http://backend:3001",
-  priceAmount: "0.001", priceCurrency: "DMHKD", network: "optimism-sepolia",
-  tokenId: "dmhkd-optimism-sepolia",
-  recipient: "0x1111111111111111111111111111111111111111", apiKey: "", minReputation: 0, createdAt: 1,
+  id: "svc_1", name: "Test API",
+  backendUrl: "http://backend:3001",
+  apiKey: "", minReputation: 0, createdAt: 1,
   providerId: "",
+};
+
+const mockScheme: ServicePaymentScheme = {
+  id: "scheme_1", serviceId: "svc_1",
+  network: "optimism-sepolia",
+  tokenId: "dmhkd-optimism-sepolia",
+  priceAmount: "0.001", priceCurrency: "DMHKD",
+  recipient: "0x1111111111111111111111111111111111111111",
+  createdAt: 1,
 };
 
 const validPayload = {
@@ -82,7 +90,7 @@ describe("x402Middleware", () => {
 
   it("returns 402 when no PAYMENT-SIGNATURE header", async () => {
     const app = new Hono();
-    app.use("*", x402Middleware(() => mockService));
+    app.use("*", x402Middleware(() => ({ service: mockService, scheme: mockScheme })));
     app.get("/api/test", (c) => c.text("ok"));
 
     const res = await app.request("/api/test");
@@ -98,7 +106,7 @@ describe("x402Middleware", () => {
     const header = Buffer.from(JSON.stringify(validPayload)).toString("base64");
 
     const app = new Hono();
-    app.use("*", x402Middleware(() => mockService));
+    app.use("*", x402Middleware(() => ({ service: mockService, scheme: mockScheme })));
     app.get("/api/test", (c) => c.text("ok"));
 
     const res = await app.request("/api/test", {
@@ -109,7 +117,7 @@ describe("x402Middleware", () => {
 
   it("returns 402 when PAYMENT-SIGNATURE header is malformed base64/JSON", async () => {
     const app = new Hono();
-    app.use("*", x402Middleware(() => mockService));
+    app.use("*", x402Middleware(() => ({ service: mockService, scheme: mockScheme })));
     app.get("/api/test", (c) => c.text("ok"));
 
     const res = await app.request("/api/test", {
@@ -125,7 +133,7 @@ describe("x402Middleware", () => {
     const header = Buffer.from(JSON.stringify(validPayload)).toString("base64");
 
     const app = new Hono();
-    app.use("*", x402Middleware(() => mockService));
+    app.use("*", x402Middleware(() => ({ service: mockService, scheme: mockScheme })));
     app.get("/api/test", (c) => c.text("ok"));
 
     const res = await app.request("/api/test", {
@@ -157,7 +165,7 @@ describe("x402Middleware", () => {
     const header = Buffer.from(JSON.stringify(validPayload)).toString("base64");
 
     const app = new Hono();
-    app.use("*", x402Middleware(() => mockService));
+    app.use("*", x402Middleware(() => ({ service: mockService, scheme: mockScheme })));
     app.get("/api/test", (c) => c.text("ok"));
 
     const res = await app.request("/api/test", {
@@ -184,4 +192,3 @@ describe("settleAfterSuccess", () => {
     expect(body.result).toBeNull();
   });
 });
-

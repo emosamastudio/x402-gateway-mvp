@@ -1,14 +1,14 @@
 import type { Context, Next } from "hono";
-import type { Service } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme } from "@x402-gateway-mvp/shared";
 import { checkAgentIdentity } from "@x402-gateway-mvp/chain";
 import { getDb } from "../db.js";
 import { randomUUID } from "crypto";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-type ServiceResolver = (path: string) => Service | undefined;
+type SchemeResolver = (path: string) => { service: Service; scheme: ServicePaymentScheme } | undefined;
 
-function recordUnauthorized(c: Context, service: Service, agentAddress: string, errorReason: string, httpStatus: number) {
+function recordUnauthorized(c: Context, service: Service, network: string, agentAddress: string, errorReason: string, httpStatus: number) {
   const now = Date.now();
   const db = getDb();
   db.insertRequest({
@@ -17,7 +17,7 @@ function recordUnauthorized(c: Context, service: Service, agentAddress: string, 
     agentAddress,
     method: c.req.method,
     path: c.req.path,
-    network: service.network,
+    network,
     gatewayStatus: "unauthorized",
     httpStatus,
     responseStatus: 0,
@@ -32,16 +32,17 @@ function recordUnauthorized(c: Context, service: Service, agentAddress: string, 
   });
 }
 
-export function identityMiddleware(resolveService: ServiceResolver) {
+export function identityMiddleware(resolveScheme: SchemeResolver) {
   return async (c: Context, next: Next) => {
-    const service = resolveService(c.req.path);
-    if (!service) return next();
+    const resolved = resolveScheme(c.req.path);
+    if (!resolved) return next();
 
+    const { service, scheme } = resolved;
     const agentAddress = c.req.header("X-Agent-Address") ??
                          c.req.header("x-agent-address");
 
     if (!agentAddress) {
-      recordUnauthorized(c, service, "", "Agent address required (X-Agent-Address header)", 403);
+      recordUnauthorized(c, service, scheme.network, "", "Agent address required (X-Agent-Address header)", 403);
       return c.json({ error: "Agent address required (X-Agent-Address header)" }, 403);
     }
 
@@ -51,42 +52,42 @@ export function identityMiddleware(resolveService: ServiceResolver) {
     // Check cache first
     const cached = db.getAgentCache(agentAddress.toLowerCase());
     if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
-      return enforcePolicy(c, next, service, cached.isRegistered, cached.reputation, agentAddress);
+      return enforcePolicy(c, next, service, scheme.network, cached.isRegistered, cached.reputation, agentAddress);
     }
 
     // Query chain
     let isRegistered = false;
     let reputation = 0;
     try {
-      const info = await checkAgentIdentity(agentAddress, service.network);
+      const info = await checkAgentIdentity(agentAddress, scheme.network);
       isRegistered = info.isRegistered;
       reputation = info.reputation;
     } catch {
       // Chain RPC failure: use stale cache if available, else 503
       if (cached) {
-        return enforcePolicy(c, next, service, cached.isRegistered, cached.reputation, agentAddress);
+        return enforcePolicy(c, next, service, scheme.network, cached.isRegistered, cached.reputation, agentAddress);
       }
-      recordUnauthorized(c, service, agentAddress, "Chain unavailable, cannot verify agent identity", 503);
+      recordUnauthorized(c, service, scheme.network, agentAddress, "Chain unavailable, cannot verify agent identity", 503);
       return c.json({ error: "Chain unavailable, cannot verify agent identity" }, 503);
     }
 
     // Update cache
     db.upsertAgentCache({ address: agentAddress.toLowerCase(), isRegistered, reputation, cachedAt: now });
 
-    return enforcePolicy(c, next, service, isRegistered, reputation, agentAddress);
+    return enforcePolicy(c, next, service, scheme.network, isRegistered, reputation, agentAddress);
   };
 }
 
 function enforcePolicy(
-  c: Context, next: Next, service: Service,
+  c: Context, next: Next, service: Service, network: string,
   isRegistered: boolean, reputation: number, agentAddress: string
 ) {
   if (!isRegistered) {
-    recordUnauthorized(c, service, agentAddress, "Agent not registered (ERC-8004)", 403);
+    recordUnauthorized(c, service, network, agentAddress, "Agent not registered (ERC-8004)", 403);
     return c.json({ error: "Agent not registered (ERC-8004)", agentAddress }, 403);
   }
   if (reputation < service.minReputation) {
-    recordUnauthorized(c, service, agentAddress, `Agent reputation insufficient (${reputation} < ${service.minReputation})`, 403);
+    recordUnauthorized(c, service, network, agentAddress, `Agent reputation insufficient (${reputation} < ${service.minReputation})`, 403);
     return c.json({
       error: "Agent reputation insufficient",
       current: reputation,

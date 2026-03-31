@@ -12,6 +12,8 @@ import { rpcEndpointsRouter } from "./routes/rpc-endpoints.js";
 import { providerAuthRouter } from "./routes/provider-auth.js";
 import { providerMeRouter } from "./routes/provider-me.js";
 import { providerServicesRouter } from "./routes/provider-services.js";
+import { providerSchemesRouter } from "./routes/provider-schemes.js";
+import { serviceSchemesRouter } from "./routes/service-schemes.js";
 import { providerDataRouter } from "./routes/provider-data.js";
 import { verifyProviderJwt, type ProviderEnv } from "./middleware/provider-jwt.js";
 
@@ -30,6 +32,7 @@ export function createAdminApp() {
   const providerApp = new Hono<ProviderEnv>();
   providerApp.use("*", verifyProviderJwt);
   providerApp.route("/me", providerMeRouter);
+  providerApp.route("/services/:serviceId/schemes", providerSchemesRouter);
   providerApp.route("/services", providerServicesRouter);
   providerApp.route("/", providerDataRouter); // handles /requests /payments /stats/* /tokens /chains
   app.route("/provider", providerApp);
@@ -54,6 +57,7 @@ export function createAdminApp() {
     }
   }
 
+  app.route("/services/:id/schemes", serviceSchemesRouter);
   app.route("/services", servicesRouter);
   app.route("/providers", providersRouter);
   app.route("/payments", paymentsRouter);

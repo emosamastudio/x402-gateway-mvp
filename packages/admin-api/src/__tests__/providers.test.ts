@@ -18,7 +18,9 @@ const mockDb = {
   updateProvider: vi.fn(() => true),
   deleteProvider: vi.fn(() => true),
   listServicesByProvider: vi.fn(() => [] as any[]),
+  listSchemesByService: vi.fn(() => [] as any[]),
   updateService: vi.fn(),
+  updateScheme: vi.fn(),
 };
 
 vi.mock("@x402-gateway-mvp/core/src/db.js", () => ({
@@ -174,13 +176,16 @@ describe("PUT /providers/:id", () => {
     expect(res.status).toBe(409);
   });
 
-  it("cascades wallet change to service recipients", async () => {
-    // Existing service uses the old wallet as recipient
-    const linkedService = {
-      id: "svc_1",
+  it("cascades wallet change to scheme recipients", async () => {
+    // Existing service has a scheme that uses the old wallet as recipient
+    const linkedService = { id: "svc_1" };
+    const linkedScheme = {
+      id: "scheme_1",
+      serviceId: "svc_1",
       recipient: sampleProvider.walletAddress,
     };
     mockDb.listServicesByProvider.mockReturnValue([linkedService]);
+    mockDb.listSchemesByService.mockReturnValue([linkedScheme]);
 
     const res = await makeApp().request("/providers/prov_1", {
       method: "PUT",
@@ -188,8 +193,8 @@ describe("PUT /providers/:id", () => {
       body: JSON.stringify({ walletAddress: newWallet }),
     });
     expect(res.status).toBe(200);
-    // Should have updated the service recipient to the new wallet
-    expect(mockDb.updateService).toHaveBeenCalledWith("svc_1", { recipient: newWallet });
+    // Should have updated the scheme recipient to the new wallet
+    expect(mockDb.updateScheme).toHaveBeenCalledWith("scheme_1", { recipient: newWallet });
   });
 
   it("does not cascade when wallet is unchanged", async () => {

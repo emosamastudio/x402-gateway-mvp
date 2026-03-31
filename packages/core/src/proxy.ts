@@ -13,12 +13,12 @@ const FORWARD_HEADERS = new Set([
   "x-forwarded-for",
 ]);
 
-export async function proxyToBackend(c: Context, service: Service): Promise<Response> {
+export async function proxyToBackend(c: Context, service: Service, gatewayPrefix: string): Promise<Response> {
   const url = new URL(c.req.url);
-  const { backendUrl, gatewayPath, apiKey } = service;
+  const { backendUrl, apiKey } = service;
 
-  // Strip the gateway path prefix from the incoming request, then append to backendUrl
-  const gp = gatewayPath.replace(/\/$/, "");
+  // Strip the gateway prefix from the incoming request, then append to backendUrl
+  const gp = gatewayPrefix.replace(/\/$/, "");
   let subPath = url.pathname;
   if (gp && subPath.startsWith(gp)) {
     subPath = subPath.slice(gp.length);

@@ -100,7 +100,7 @@ export function Dashboard() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["服务名", "路径", "网络", "价格", "请求数", "收入", "最后调用"].map(h => (
+                {["服务名", "请求数", "收入", "最后调用"].map(h => (
                   <th key={h} style={{ textAlign: "left", color: "#6b7280", padding: "8px 12px", fontWeight: 400 }}>{h}</th>
                 ))}
               </tr>
@@ -114,9 +114,6 @@ export function Dashboard() {
                 return (
                   <tr key={s.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                     <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{s.name}</td>
-                    <td style={{ padding: "10px 12px", color: "#3b82f6", fontFamily: "monospace" }}>{s.gatewayPath}</td>
-                    <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.network}</td>
-                    <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{s.priceAmount} {s.priceCurrency}</td>
                     <td style={{ padding: "10px 12px", color: "#e2e8f0" }}>{svcReqs.length}</td>
                     <td style={{ padding: "10px 12px", color: "#10b981" }}>{revenue.toFixed(4)}</td>
                     <td style={{ padding: "10px 12px", color: "#6b7280" }}>

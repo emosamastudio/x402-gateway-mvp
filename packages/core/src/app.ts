@@ -4,42 +4,40 @@ import { getDb } from "./db.js";
 import { identityMiddleware } from "./middleware/identity.js";
 import { x402Middleware, settleAfterSuccess } from "./middleware/x402.js";
 import { proxyToBackend } from "./proxy.js";
-import type { Service } from "@x402-gateway-mvp/shared";
+import type { Service, ServicePaymentScheme, ServiceProvider } from "@x402-gateway-mvp/shared";
 import { randomUUID } from "crypto";
 import { fromUsdcUnits } from "@x402-gateway-mvp/shared";
+
+type ResolvedScheme = {
+  service: Service;
+  scheme: ServicePaymentScheme;
+  provider: ServiceProvider;
+};
 
 export function createCoreApp() {
   const app = new Hono();
   app.use("*", logger());
 
-  // Route resolver: match request path to a registered service
-  function resolveService(path: string): Service | undefined {
-    const db = getDb();
-    const services = db.listServices();
-    // Match by gatewayPath prefix; "/" is a catch-all.
-    // Among multiple matches, the most specific (longest) prefix wins.
-    const matches = services.filter((s) => {
-      const gp = s.gatewayPath.replace(/\/$/, "");
-      if (!gp) return true; // "/" stripped to "" → catch-all
-      return path === gp || path.startsWith(gp + "/");
-    });
-    if (matches.length === 0) return undefined;
-    return matches.reduce((best, s) =>
-      s.gatewayPath.length > best.gatewayPath.length ? s : best
-    );
+  // Route resolver: match request path to a registered service+scheme
+  function resolveScheme(path: string): ResolvedScheme | undefined {
+    const segments = path.split("/").filter(s => s.length > 0);
+    if (segments.length < 4) return undefined;
+    const [providerSlug, serviceSlug, network, tokenSlug] = segments;
+    return getDb().resolveSchemeByPath(providerSlug, serviceSlug, network, tokenSlug);
   }
 
   // Health check (unprotected)
   app.get("/health", (c) => c.json({ status: "ok" }));
 
   // Protected routes: identity check → x402 payment → proxy → settle
-  app.all("*", identityMiddleware(resolveService));
-  app.all("*", x402Middleware(resolveService));
+  app.all("*", identityMiddleware((path) => resolveScheme(path)));
+  app.all("*", x402Middleware((path) => resolveScheme(path)));
 
   app.all("*", async (c) => {
-    const service = resolveService(c.req.path);
-    if (!service) return c.json({ error: "No registered service for this path" }, 404);
+    const resolved = resolveScheme(c.req.path);
+    if (!resolved) return c.json({ error: "No registered service for this path" }, 404);
 
+    const { service, scheme } = resolved;
     const db = getDb();
     const now = Date.now();
     const agentAddress = c.req.header("X-Agent-Address") ?? c.req.header("x-agent-address") ?? "";
@@ -48,10 +46,14 @@ export function createCoreApp() {
     const requestId: string = (c as any).get("requestId") ?? randomUUID();
     const hasPendingRecord = !!(c as any).get("requestId");
 
+    // Compute the gateway prefix from the first 4 path segments
+    const segments = c.req.path.split("/").filter(s => s.length > 0);
+    const gatewayPrefix = "/" + segments.slice(0, 4).join("/");
+
     // ── Proxy to backend ──────────────────────────────────────────────
     let backendResponse: Response;
     try {
-      backendResponse = await proxyToBackend(c, service);
+      backendResponse = await proxyToBackend(c, service, gatewayPrefix);
     } catch (err: any) {
       const isTimeout = err.name === "TimeoutError";
       const httpStatus = isTimeout ? 504 : 502;
@@ -66,7 +68,7 @@ export function createCoreApp() {
       } else {
         db.insertRequest({
           id: requestId, serviceId: service.id, agentAddress,
-          method: c.req.method, path: c.req.path, network: service.network,
+          method: c.req.method, path: c.req.path, network: scheme.network,
           gatewayStatus: "proxy_error", httpStatus,
           responseStatus: 0, responseBody: "",
           errorReason, paymentId: "",
@@ -100,7 +102,7 @@ export function createCoreApp() {
       } else {
         db.insertRequest({
           id: requestId, serviceId: service.id, agentAddress,
-          method: c.req.method, path: c.req.path, network: service.network,
+          method: c.req.method, path: c.req.path, network: scheme.network,
           gatewayStatus: "backend_error", httpStatus: backendResponse.status,
           responseStatus: backendResponse.status, responseBody: responseBodyText,
           errorReason: `Backend returned ${backendResponse.status}`,
@@ -131,7 +133,7 @@ export function createCoreApp() {
       } else {
         db.insertRequest({
           id: requestId, serviceId: service.id, agentAddress,
-          method: c.req.method, path: c.req.path, network: service.network,
+          method: c.req.method, path: c.req.path, network: scheme.network,
           gatewayStatus: "success", httpStatus: backendResponse.status,
           responseStatus: backendResponse.status, responseBody: responseBodyText,
           errorReason: "", paymentId: "",
@@ -183,7 +185,7 @@ export function createCoreApp() {
       serviceId: service.id,
       agentAddress: paymentPayload.payload.authorization.from,
       txHash: txHash ?? "failed",
-      network: service.network,
+      network: scheme.network,
       amount: fromUsdcUnits(BigInt(paymentPayload.payload.authorization.value)),
       status: txHash ? "settled" : "failed",
       settlementError: settlementError ?? "",

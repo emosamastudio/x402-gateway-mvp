@@ -17,8 +17,24 @@ vi.mock("../db.js", () => ({
 
 import { checkAgentIdentity } from "@x402-gateway-mvp/chain";
 import { identityMiddleware } from "../middleware/identity.js";
+import type { Service, ServicePaymentScheme } from "@x402-gateway-mvp/shared";
 
-const mockService = { id: "svc_1", minReputation: 0, network: "optimism-sepolia" } as any;
+const mockService: Service = {
+  id: "svc_1", name: "Test API",
+  backendUrl: "http://backend:3001",
+  apiKey: "", minReputation: 0, createdAt: 1, providerId: "",
+};
+
+const mockScheme: ServicePaymentScheme = {
+  id: "scheme_1", serviceId: "svc_1",
+  network: "optimism-sepolia",
+  tokenId: "dmhkd-optimism-sepolia",
+  priceAmount: "0.001", priceCurrency: "DMHKD",
+  recipient: "0x1111111111111111111111111111111111111111",
+  createdAt: 1,
+};
+
+const mockResolved = { service: mockService, scheme: mockScheme };
 
 describe("identityMiddleware", () => {
   beforeEach(() => {
@@ -30,7 +46,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: false, reputation: 0 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => mockService));
+    app.use("*", identityMiddleware(() => mockResolved));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -45,7 +61,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: true, reputation: 30 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ ...mockService, minReputation: 50 })));
+    app.use("*", identityMiddleware(() => ({ service: { ...mockService, minReputation: 50 }, scheme: mockScheme })));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -60,7 +76,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: true, reputation: 80 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ ...mockService, minReputation: 50 })));
+    app.use("*", identityMiddleware(() => ({ service: { ...mockService, minReputation: 50 }, scheme: mockScheme })));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -71,7 +87,7 @@ describe("identityMiddleware", () => {
 
   it("returns 403 when X-Agent-Address header is missing", async () => {
     const app = new Hono();
-    app.use("*", identityMiddleware(() => mockService));
+    app.use("*", identityMiddleware(() => mockResolved));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api");
@@ -99,7 +115,7 @@ describe("identityMiddleware", () => {
     });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ ...mockService, minReputation: 50 })));
+    app.use("*", identityMiddleware(() => ({ service: { ...mockService, minReputation: 50 }, scheme: mockScheme })));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -120,7 +136,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockResolvedValue({ isRegistered: true, reputation: 90 });
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => mockService));
+    app.use("*", identityMiddleware(() => mockResolved));
     app.get("/api", (c) => c.text("ok"));
 
     await app.request("/api", { headers: { "X-Agent-Address": "0xabc" } });
@@ -131,7 +147,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockRejectedValue(new Error("RPC unreachable"));
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => mockService));
+    app.use("*", identityMiddleware(() => mockResolved));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -153,7 +169,7 @@ describe("identityMiddleware", () => {
     vi.mocked(checkAgentIdentity).mockRejectedValue(new Error("RPC unreachable"));
 
     const app = new Hono();
-    app.use("*", identityMiddleware(() => ({ ...mockService, minReputation: 50 })));
+    app.use("*", identityMiddleware(() => ({ service: { ...mockService, minReputation: 50 }, scheme: mockScheme })));
     app.get("/api", (c) => c.text("ok"));
 
     const res = await app.request("/api", {
@@ -163,4 +179,3 @@ describe("identityMiddleware", () => {
     expect(res.status).toBe(200);
   });
 });
-
